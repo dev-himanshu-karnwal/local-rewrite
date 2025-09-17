@@ -11,8 +11,7 @@ const dirsToCopy = [
   'icons',
   'popup',
   'background',
-  'content',
-  'shared'
+  'content'
 ];
 
 function copyFile(src, dest) {
@@ -38,7 +37,10 @@ function copyDirectory(src, dest) {
       if (fs.statSync(srcPath).isDirectory()) {
         copyDirectory(srcPath, destPath);
       } else {
-        copyFile(srcPath, destPath);
+        // Only copy non-TypeScript files
+        if (!file.endsWith('.ts') && !file.endsWith('.tsx')) {
+          copyFile(srcPath, destPath);
+        }
       }
     });
   } catch (error) {

@@ -1,5 +1,5 @@
 /* Ping Icon Styles */
-.text-improvement-ping {
+.lre__text-improvement-ping {
   position: absolute;
   z-index: 10001;
   width: 24px;
@@ -16,17 +16,17 @@
   border: 2px solid white;
 }
 
-.text-improvement-ping:hover {
+.lre__text-improvement-ping:hover {
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.text-improvement-ping:active {
+.lre__text-improvement-ping:active {
   transform: scale(0.95);
 }
 
 /* Panel Styles */
-.text-improvement-panel {
+.lre__text-improvement-panel {
   position: absolute;
   z-index: 10000;
   background: white;
@@ -44,12 +44,12 @@
   display: none;
 }
 
-.text-improvement-panel.visible {
+.lre__text-improvement-panel.lre__visible {
   opacity: 1;
   transform: translateY(0);
 }
 
-.panel-header {
+.lre__panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -60,32 +60,32 @@
   color: white;
 }
 
-.header-left {
+.lre__header-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.star-icon {
+.lre__star-icon {
   font-size: 14px;
 }
 
-.panel-title {
+.lre__panel-title {
   font-weight: 600;
   font-size: 13px;
 }
 
-.separator {
+.lre__separator {
   color: #a0aec0;
   font-size: 12px;
 }
 
-.sample-text {
+.lre__sample-text {
   color: #a0aec0;
   font-size: 12px;
 }
 
-.close-btn {
+.lre__close-btn {
   background: none;
   border: none;
   font-size: 18px;
@@ -101,49 +101,49 @@
   transition: background-color 0.2s ease;
 }
 
-.close-btn:hover {
+.lre__close-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
 }
 
-.panel-content {
+.lre__panel-content {
   padding: 16px;
 }
 
-.suggestion-purpose {
+.lre__suggestion-purpose {
   color: #38a169;
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 12px;
 }
 
-.loading-state {
+.lre__loading-state {
   display: flex;
   align-items: center;
   gap: 12px;
   color: #6c757d;
 }
 
-.spinner {
+.lre__spinner {
   width: 16px;
   height: 16px;
   border: 2px solid #e1e5e9;
   border-top: 2px solid #007bff;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: lre__spin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes lre__spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-.suggestion-text-container {
+.lre__suggestion-text-container {
   position: relative;
   margin-bottom: 16px;
 }
 
-.suggestion-indicator {
+.lre__suggestion-indicator {
   position: absolute;
   left: 0;
   top: 0;
@@ -153,7 +153,7 @@
   border-radius: 2px;
 }
 
-.suggestion-text {
+.lre__suggestion-text {
   background: #f8f9fa;
   padding: 12px 12px 12px 16px;
   border-radius: 6px;
@@ -162,20 +162,20 @@
   margin-left: 3px;
 }
 
-.highlight-change {
+.lre__highlight-change {
   background-color: #bee3f8;
   padding: 1px 2px;
   border-radius: 3px;
   color: #2b6cb0;
 }
 
-.suggestion-actions {
+.lre__suggestion-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.accept-btn {
+.lre__accept-btn {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -190,13 +190,13 @@
   transition: all 0.2s ease;
 }
 
-.accept-btn:hover {
+.lre__accept-btn:hover {
   background: #e8f5e8;
   border-color: #28a745;
   color: #1e7e34;
 }
 
-.feedback-options {
+.lre__feedback-options {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -204,16 +204,16 @@
   font-size: 13px;
 }
 
-.feedback-text {
+.lre__feedback-text {
   cursor: pointer;
 }
 
-.more-options {
+.lre__more-options {
   cursor: pointer;
   font-size: 16px;
 }
 
-.google-icon {
+.lre__google-icon {
   width: 20px;
   height: 20px;
   background: #4285f4;
@@ -227,21 +227,21 @@
   cursor: pointer;
 }
 
-.action-btn svg {
+.lre__action-btn svg {
   flex-shrink: 0;
 }
 
-.error-state {
+.lre__error-state {
   text-align: center;
 }
 
-.error-message {
+.lre__error-message {
   color: #dc3545;
   margin-bottom: 12px;
   font-size: 13px;
 }
 
-.retry-btn {
+.lre__retry-btn {
   padding: 8px 16px;
   background: #007bff;
   color: white;
@@ -253,12 +253,12 @@
   transition: background-color 0.2s ease;
 }
 
-.retry-btn:hover {
+.lre__retry-btn:hover {
   background: #0056b3;
 }
 
 /* Input highlight effect for replaced text */
-.input-replaced {
+.lre__input-replaced {
   background-color: #e8f5e8 !important;
   border-color: #28a745 !important;
   transition: all 0.3s ease;
@@ -266,16 +266,16 @@
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
-  .text-improvement-panel {
+  .lre__text-improvement-panel {
     min-width: 280px;
     max-width: 90vw;
   }
   
-  .suggestion-actions {
+  .lre__suggestion-actions {
     flex-direction: column;
   }
   
-  .action-btn {
+  .lre__action-btn {
     justify-content: center;
   }
 }

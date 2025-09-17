@@ -1,8 +1,35 @@
 // Popup script for settings and configuration
 
-import { UserSettings, ModelConfig } from '../shared/types';
-import { DEFAULT_SETTINGS } from '../shared/constants';
-import { StorageManager } from '../shared/storage';
+interface UserSettings {
+  fastModel: ModelConfig;
+  qualityModel: ModelConfig;
+  autoShowPing: boolean;
+  pingIconPosition: 'right' | 'left';
+  theme: 'light' | 'dark';
+  highlightChanges: boolean;
+}
+
+interface ModelConfig {
+  name: string;
+  temperature: number;
+  top_p: number;
+}
+
+interface ExtensionMessage {
+  action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings';
+  text?: string;
+  isShort?: boolean;
+  settings?: UserSettings;
+}
+
+interface ExtensionResponse {
+  success?: boolean;
+  result?: string;
+  error?: string;
+  status?: boolean;
+  models?: string[];
+  settings?: UserSettings;
+}
 
 class PopupController {
   private statusIndicator!: HTMLElement;
@@ -28,21 +55,21 @@ class PopupController {
   }
 
   private initializeElements(): void {
-    this.statusIndicator = document.getElementById('statusIndicator')!;
-    this.statusDot = this.statusIndicator.querySelector('.status-dot')!;
-    this.statusText = this.statusIndicator.querySelector('.status-text')!;
-    this.statusCard = document.getElementById('statusCard')!;
-    this.modelsSection = document.getElementById('modelsSection')!;
-    this.uiSettingsSection = document.getElementById('uiSettingsSection')!;
-    this.errorSection = document.getElementById('errorSection')!;
-    this.fastModelSelect = document.getElementById('fastModelSelect') as HTMLSelectElement;
-    this.qualityModelSelect = document.getElementById('qualityModelSelect') as HTMLSelectElement;
-    this.saveBtn = document.getElementById('saveSettings') as HTMLButtonElement;
-    this.refreshBtn = document.getElementById('refreshStatus') as HTMLButtonElement;
-    this.autoShowPingCheckbox = document.getElementById('autoShowPing') as HTMLInputElement;
-    this.pingPositionSelect = document.getElementById('pingPosition') as HTMLSelectElement;
-    this.themeSelect = document.getElementById('theme') as HTMLSelectElement;
-    this.highlightChangesCheckbox = document.getElementById('highlightChanges') as HTMLInputElement;
+    this.statusIndicator = document.getElementById('lre__statusIndicator')!;
+    this.statusDot = this.statusIndicator.querySelector('.lre__status-dot')!;
+    this.statusText = this.statusIndicator.querySelector('.lre__status-text')!;
+    this.statusCard = document.getElementById('lre__statusCard')!;
+    this.modelsSection = document.getElementById('lre__modelsSection')!;
+    this.uiSettingsSection = document.getElementById('lre__uiSettingsSection')!;
+    this.errorSection = document.getElementById('lre__errorSection')!;
+    this.fastModelSelect = document.getElementById('lre__fastModelSelect') as HTMLSelectElement;
+    this.qualityModelSelect = document.getElementById('lre__qualityModelSelect') as HTMLSelectElement;
+    this.saveBtn = document.getElementById('lre__saveSettings') as HTMLButtonElement;
+    this.refreshBtn = document.getElementById('lre__refreshStatus') as HTMLButtonElement;
+    this.autoShowPingCheckbox = document.getElementById('lre__autoShowPing') as HTMLInputElement;
+    this.pingPositionSelect = document.getElementById('lre__pingPosition') as HTMLSelectElement;
+    this.themeSelect = document.getElementById('lre__theme') as HTMLSelectElement;
+    this.highlightChangesCheckbox = document.getElementById('lre__highlightChanges') as HTMLInputElement;
   }
 
   private setupEventListeners(): void {
@@ -55,10 +82,10 @@ class PopupController {
   }
 
   private setupSliderListeners(type: 'fast' | 'quality'): void {
-    const tempSlider = document.getElementById(`${type}TempSlider`) as HTMLInputElement;
-    const tempValue = document.getElementById(`${type}TempValue`) as HTMLElement;
-    const topPSlider = document.getElementById(`${type}TopPSlider`) as HTMLInputElement;
-    const topPValue = document.getElementById(`${type}TopPValue`) as HTMLElement;
+    const tempSlider = document.getElementById(`lre__${type}TempSlider`) as HTMLInputElement;
+    const tempValue = document.getElementById(`lre__${type}TempValue`) as HTMLElement;
+    const topPSlider = document.getElementById(`lre__${type}TopPSlider`) as HTMLInputElement;
+    const topPValue = document.getElementById(`lre__${type}TopPValue`) as HTMLElement;
 
     tempSlider.addEventListener('input', () => {
       tempValue.textContent = tempSlider.value;
@@ -80,7 +107,7 @@ class PopupController {
       
       const messagePromise = chrome.runtime.sendMessage({ action: 'checkOllama' });
       
-      const response = await Promise.race([messagePromise, timeoutPromise]) as any;
+      const response = await Promise.race([messagePromise, timeoutPromise]) as ExtensionResponse;
       
       if (response && response.status) {
         this.setStatus('connected', 'Ollama Connected');
@@ -105,7 +132,7 @@ class PopupController {
       });
       
       const messagePromise = chrome.runtime.sendMessage({ action: 'getModels' });
-      const response = await Promise.race([messagePromise, timeoutPromise]) as any;
+      const response = await Promise.race([messagePromise, timeoutPromise]) as ExtensionResponse;
       
       const models = response?.models || [];
       
@@ -156,10 +183,10 @@ class PopupController {
   }
 
   private updateSliderValues(type: 'fast' | 'quality', config: ModelConfig): void {
-    const tempSlider = document.getElementById(`${type}TempSlider`) as HTMLInputElement;
-    const tempValue = document.getElementById(`${type}TempValue`) as HTMLElement;
-    const topPSlider = document.getElementById(`${type}TopPSlider`) as HTMLInputElement;
-    const topPValue = document.getElementById(`${type}TopPValue`) as HTMLElement;
+    const tempSlider = document.getElementById(`lre__${type}TempSlider`) as HTMLInputElement;
+    const tempValue = document.getElementById(`lre__${type}TempValue`) as HTMLElement;
+    const topPSlider = document.getElementById(`lre__${type}TopPSlider`) as HTMLInputElement;
+    const topPValue = document.getElementById(`lre__${type}TopPValue`) as HTMLElement;
 
     tempSlider.value = config.temperature.toString();
     tempValue.textContent = config.temperature.toString();
@@ -182,14 +209,14 @@ class PopupController {
     try {
       const fastConfig: ModelConfig = {
         name: fastModel,
-        temperature: parseFloat((document.getElementById('fastTempSlider') as HTMLInputElement).value),
-        top_p: parseFloat((document.getElementById('fastTopPSlider') as HTMLInputElement).value)
+        temperature: parseFloat((document.getElementById('lre__fastTempSlider') as HTMLInputElement).value),
+        top_p: parseFloat((document.getElementById('lre__fastTopPSlider') as HTMLInputElement).value)
       };
 
       const qualityConfig: ModelConfig = {
         name: qualityModel,
-        temperature: parseFloat((document.getElementById('qualityTempSlider') as HTMLInputElement).value),
-        top_p: parseFloat((document.getElementById('qualityTopPSlider') as HTMLInputElement).value)
+        temperature: parseFloat((document.getElementById('lre__qualityTempSlider') as HTMLInputElement).value),
+        top_p: parseFloat((document.getElementById('lre__qualityTopPSlider') as HTMLInputElement).value)
       };
 
       const settings: UserSettings = {
@@ -226,11 +253,11 @@ class PopupController {
 
   private setStatus(type: 'checking' | 'connected' | 'error', text: string): void {
     this.statusText.textContent = text;
-    this.statusDot.className = `status-dot ${type}`;
+    this.statusDot.className = `lre__status-dot lre__${type}`;
     
-    const statusIcon = this.statusCard.querySelector('.status-icon') as HTMLElement;
-    const statusTitle = this.statusCard.querySelector('.status-title') as HTMLElement;
-    const statusDescription = this.statusCard.querySelector('.status-description') as HTMLElement;
+    const statusIcon = this.statusCard.querySelector('.lre__status-icon') as HTMLElement;
+    const statusTitle = this.statusCard.querySelector('.lre__status-title') as HTMLElement;
+    const statusDescription = this.statusCard.querySelector('.lre__status-description') as HTMLElement;
 
     switch (type) {
       case 'checking':
@@ -259,6 +286,7 @@ class PopupController {
 
   private showErrorSection(): void {
     this.modelsSection.style.display = 'none';
+    this.uiSettingsSection.style.display = 'none';
     this.errorSection.style.display = 'block';
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "grammarly-local-extension",
+  "name": "local-rewrite",
   "version": "1.0.0",
   "description": "A Chrome extension for text improvement using local Ollama models",
   "scripts": {
