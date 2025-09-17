@@ -35,33 +35,32 @@ ollama serve
 curl http://localhost:11434/api/tags
 ```
 
+---
+
 ## Installation Steps
 
 ### 1. Clone/Download Project
 ```bash
 # If using git
-git clone <repository-url>
-cd grammerly-extension
+git clone [https://github.com/dev-himanshu-karnwal/local-rewrite](https://github.com/dev-himanshu-karnwal/local-rewrite)
+cd local-rewrite
 
 # Or download and extract the ZIP file
 ```
 
-### 2. Install Dependencies
+### 2. Install Dependencies & Build Extension
 ```bash
-npm install
+npm run setup
 ```
 
-### 3. Build Extension
-```bash
-npm run build
-```
-
-### 4. Load Extension in Chrome
+### 3. Load Extension in Chrome
 1. Open Chrome and navigate to `chrome://extensions/`
 2. Enable "Developer mode" (toggle in top right corner)
 3. Click "Load unpacked"
 4. Select the `dist` folder from this project
 5. The extension should now appear in your extensions list
+
+---
 
 ## Development Setup
 
@@ -89,6 +88,8 @@ npm run build-watch
 npm run test-ollama
 ```
 
+---
+
 ## Usage Instructions
 
 ### Basic Usage
@@ -105,6 +106,8 @@ npm run test-ollama
 - **Professional UI**: Grammarly-style suggestion panel with highlighted changes
 - **Settings Management**: Configure models and parameters via extension popup
 
+---
+
 ## Configuration
 
 ### Access Settings
@@ -117,14 +120,11 @@ npm run test-ollama
 - **Temperature**: Controls randomness (0.0-1.0)
 - **Top P**: Controls diversity (0.0-1.0)
 
-### UI Settings
-- **Ping Icon Position**: Left or right side of input
-- **Theme**: Light or dark mode
-- **Highlight Preferences**: Color and style options
-
 ### Storage
 - Settings are automatically saved to Chrome storage
 - Preferences sync across devices when signed into Chrome
+
+---
 
 ## Troubleshooting
 
@@ -154,6 +154,8 @@ npm run test-ollama
 - Verify required models are pulled: `ollama list`
 - Try restarting Ollama service: `ollama serve`
 
+---
+
 ### Extension Issues
 
 #### Extension Not Working
@@ -172,15 +174,19 @@ npm run test-ollama
 - Try deleting `node_modules` and running `npm install` again
 
 #### Ping Icons Not Appearing
-- Ensure you have at least 3 characters in the input field
+- Ensure you have selected at least 3 characters in the input field
 - Check if the webpage has restrictive content security policies
 - Verify the content script is loaded (check browser console)
 - Try refreshing the webpage
+
+---
 
 ### Performance Issues
 - **Slow responses**: Check if Ollama models are loaded and running
 - **High CPU usage**: Consider using smaller models or adjusting parameters
 - **Memory issues**: Restart Ollama service if needed
+
+---
 
 ## Project Structure
 
@@ -205,12 +211,15 @@ src/
     └── icon128.png
 ```
 
+---
+
 ## Security & Privacy
 
 - **100% Local Processing**: All text processing happens on your machine
 - **No Data Collection**: No text is sent to external servers
 - **Secure Communication**: Only communicates with local Ollama instance
-- **Open Source**: Full source code available for review and modification
+
+---
 
 ## Support
 

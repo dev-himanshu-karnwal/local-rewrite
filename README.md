@@ -76,7 +76,6 @@ Click the extension icon to open the popup and configure:
 
 - **Model Selection**: Choose different models for fast vs quality processing
 - **Parameters**: Adjust temperature and top_p for each model
-- **UI Settings**: Configure ping icon position, theme, and highlight preferences
 - **Chrome Storage**: User preferences are saved and synced across devices
 - **Connection Status**: Verify Ollama is running and accessible
 
@@ -90,8 +89,6 @@ src/
 ├── content/              # Content script modules
 │   ├── content.ts       # Main orchestrator
 │   ├── content.css      # UI element styles
-│   ├── ping-icon.ts     # Ping icon management
-│   └── improvement-panel.ts # Suggestion panel
 ├── popup/                # Extension popup interface
 │   ├── popup.html       # Popup HTML
 │   ├── popup.ts         # Settings management
@@ -129,7 +126,6 @@ The extension follows a modular architecture with clear separation of concerns:
 - **Chrome Extension APIs**: Manifest V3, Storage, Runtime
 - **Ollama**: Local AI model inference
 - **CSS3**: Modern styling and animations
-- **Webpack**: Module bundling and development workflow
 
 ## Privacy & Security
 
@@ -143,20 +139,6 @@ The extension follows a modular architecture with clear separation of concerns:
 - **Setup Guide**: See [setup.md](setup.md) for detailed installation instructions
 - **Troubleshooting**: Comprehensive troubleshooting guide in setup.md
 - **Issues**: Report bugs and feature requests via GitHub issues
-
-## Contributing
-
-We welcome contributions! Please see our contributing guidelines:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details.
 
 ---
 
