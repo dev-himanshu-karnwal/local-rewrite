@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Text Improver</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>Local Text Improver</h1>
+      <div class="status-indicator" id="statusIndicator">
+        <span class="status-dot"></span>
+        <span class="status-text">Checking Ollama...</span>
+      </div>
+    </header>
+
+    <main class="popup-content">
+      <section class="connection-section">
+        <h2>Connection Status</h2>
+        <div class="status-card" id="statusCard">
+          <div class="status-info">
+            <div class="status-icon">🔍</div>
+            <div class="status-details">
+              <div class="status-title">Checking Ollama Connection</div>
+              <div class="status-description">Verifying local Ollama service...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="models-section" id="modelsSection" style="display: none;">
+        <h2>Model Configuration</h2>
+        
+        <div class="model-group">
+          <h3>Fast Model (≤20 words)</h3>
+          <div class="model-selector">
+            <select id="fastModelSelect">
+              <option value="">Select a model...</option>
+            </select>
+            <div class="model-params">
+              <label>
+                Temperature: <span id="fastTempValue">0.3</span>
+                <input type="range" id="fastTempSlider" min="0" max="1" step="0.1" value="0.3">
+              </label>
+              <label>
+                Top P: <span id="fastTopPValue">0.9</span>
+                <input type="range" id="fastTopPSlider" min="0" max="1" step="0.05" value="0.9">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="model-group">
+          <h3>Quality Model (>20 words)</h3>
+          <div class="model-selector">
+            <select id="qualityModelSelect">
+              <option value="">Select a model...</option>
+            </select>
+            <div class="model-params">
+              <label>
+                Temperature: <span id="qualityTempValue">0.4</span>
+                <input type="range" id="qualityTempSlider" min="0" max="1" step="0.1" value="0.4">
+              </label>
+              <label>
+                Top P: <span id="qualityTopPValue">0.95</span>
+                <input type="range" id="qualityTopPSlider" min="0" max="1" step="0.05" value="0.95">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <button id="saveSettings" class="save-btn">Save Settings</button>
+      </section>
+
+      <section class="ui-settings-section" id="uiSettingsSection" style="display: none;">
+        <h2>UI Settings</h2>
+        
+        <div class="setting-group">
+          <label class="setting-label">
+            <input type="checkbox" id="autoShowPing" checked>
+            <span class="setting-text">Auto-show ping icons</span>
+          </label>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">
+            <span class="setting-text">Ping icon position:</span>
+            <select id="pingPosition">
+              <option value="right">Right</option>
+              <option value="left">Left</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">
+            <span class="setting-text">Theme:</span>
+            <select id="theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label">
+            <input type="checkbox" id="highlightChanges" checked>
+            <span class="setting-text">Highlight changes in suggestions</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="usage-section">
+        <h2>How to Use</h2>
+        <div class="usage-steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <strong>Select text</strong> on any webpage
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <strong>Click the blue button</strong> that appears
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <strong>Choose Copy or Replace</strong> to apply the improvement
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="error-section" id="errorSection" style="display: none;">
+        <h2>Setup Required</h2>
+        <div class="error-card">
+          <div class="error-icon">⚠️</div>
+          <div class="error-content">
+            <h3>Ollama Not Found</h3>
+            <p>Please install and start Ollama to use this extension:</p>
+            <ol>
+              <li>Install Ollama from <a href="https://ollama.ai" target="_blank">ollama.ai</a></li>
+              <li>Pull the required models:</li>
+              <div class="code-block">
+                <code>ollama pull llama3.2:3b</code><br>
+                <code>ollama pull qwen2.5:7b</code>
+              </div>
+              <li>Start Ollama service</li>
+              <li>Refresh this popup</li>
+            </ol>
+            <button id="refreshStatus" class="refresh-btn">Check Again</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
