@@ -207,8 +207,8 @@ class OllamaService {
       };
     } catch (error) {
       console.error('Error improving text:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to improve text: ${errorMessage}`);
+      const errorMessage = this.getUserFriendlyErrorMessage(error);
+      throw new Error(errorMessage);
     }
   }
 
@@ -299,19 +299,31 @@ class OllamaService {
   }
 
   /**
-   * Gets model configuration from user settings
+   * Gets model configuration from user settings or dynamically based on available models
    * @returns Promise<{fast: ModelConfig, quality: ModelConfig}> - Model configurations
    */
   private async getModelConfig(): Promise<{ fast: ModelConfig; quality: ModelConfig }> {
     try {
       const settings = await this.getUserSettings();
-      return {
-        fast: settings.fastModel,
-        quality: settings.qualityModel
-      };
+      const availableModels = await this.getAvailableModels();
+      
+      // Check if the configured models are still available
+      const fastModelExists = availableModels.includes(settings.fastModel.name);
+      const qualityModelExists = availableModels.includes(settings.qualityModel.name);
+      
+      if (fastModelExists && qualityModelExists) {
+        // Both configured models are available, use them
+        return {
+          fast: settings.fastModel,
+          quality: settings.qualityModel
+        };
+      } else {
+        // One or both models are not available, get dynamic config
+        return await this.getDynamicModelConfig();
+      }
     } catch (error) {
       console.error('Failed to load model config:', error);
-      return this.getDefaultModelConfig();
+      return await this.getDynamicModelConfig();
     }
   }
 
@@ -341,6 +353,44 @@ class OllamaService {
   }
 
   /**
+   * Gets dynamic model configuration based on available models
+   * If only one model is available, uses it for both fast and quality
+   * @returns Promise<{fast: ModelConfig, quality: ModelConfig}> - Dynamic model configs
+   */
+  private async getDynamicModelConfig(): Promise<{ fast: ModelConfig; quality: ModelConfig }> {
+    try {
+      const availableModels = await this.getAvailableModels();
+      
+      if (availableModels.length === 0) {
+        // No models available, return defaults
+        return this.getDefaultModelConfig();
+      } else if (availableModels.length === 1) {
+        // Only one model available, use it for both fast and quality
+        const singleModel = availableModels[0];
+        return {
+          fast: { name: singleModel, temperature: 0.3, top_p: 0.9 },
+          quality: { name: singleModel, temperature: 0.4, top_p: 0.95 }
+        };
+      } else {
+        // Multiple models available, try to use saved settings or defaults
+        try {
+          const settings = await this.getUserSettings();
+          return {
+            fast: settings.fastModel,
+            quality: settings.qualityModel
+          };
+        } catch (error) {
+          // Fallback to defaults if settings can't be loaded
+          return this.getDefaultModelConfig();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to get dynamic model config:', error);
+      return this.getDefaultModelConfig();
+    }
+  }
+
+  /**
    * Returns default user settings
    * @returns UserSettings - Default user settings
    */
@@ -354,6 +404,47 @@ class OllamaService {
       theme: 'light',
       highlightChanges: true
     };
+  }
+
+  /**
+   * Converts technical error messages to user-friendly messages
+   * @param error - The original error
+   * @returns string - User-friendly error message
+   */
+  private getUserFriendlyErrorMessage(error: unknown): string {
+    const errorString = error instanceof Error ? error.message : String(error);
+    
+    // Handle common error patterns and convert to user-friendly messages
+    if (errorString.includes('Failed to fetch') || errorString.includes('NetworkError')) {
+      return 'Unable to connect to Ollama. Please make sure Ollama is running on your computer.';
+    }
+    
+    if (errorString.includes('timeout') || errorString.includes('Timeout')) {
+      return 'The request took too long to complete. Please try again or check if Ollama is running properly.';
+    }
+    
+    if (errorString.includes('404') || errorString.includes('Not Found')) {
+      return 'The AI model was not found. Please check if the model is installed in Ollama.';
+    }
+    
+    if (errorString.includes('500') || errorString.includes('Internal Server Error')) {
+      return 'Ollama encountered an internal error. Please try again in a moment.';
+    }
+    
+    if (errorString.includes('JSON') || errorString.includes('parse')) {
+      return 'The AI response was not in the expected format. Please try again.';
+    }
+    
+    if (errorString.includes('model') && errorString.includes('not found')) {
+      return 'The selected AI model is not available. Please check your model configuration.';
+    }
+    
+    if (errorString.includes('connection') || errorString.includes('ECONNREFUSED')) {
+      return 'Cannot connect to Ollama. Please make sure Ollama is installed and running.';
+    }
+    
+    // Default user-friendly message for unknown errors
+    return 'Something went wrong while improving your text. Please make sure Ollama is running and try again.';
   }
 }
 

@@ -458,7 +458,8 @@ class ImprovementPanelManager {
         this.showError(response.error);
       }
     } catch (error) {
-      this.showError('Failed to improve text. Please check if Ollama is running.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to improve text. Please check if Ollama is running.';
+      this.showError(errorMessage);
     } finally {
       this.isProcessing = false;
     }
