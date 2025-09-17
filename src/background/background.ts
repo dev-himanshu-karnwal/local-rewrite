@@ -1,5 +1,23 @@
-// Background script for Ollama communication and message handling
+/**
+ * Background Script for Local Text Improver Extension
+ * 
+ * This script handles communication with the Ollama API and manages
+ * message routing between content scripts and the popup interface.
+ * 
+ * Key responsibilities:
+ * - Ollama API communication and status checking
+ * - Text improvement processing using local AI models
+ * - User settings management and persistence
+ * - Model configuration and selection
+ */
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Response structure from Ollama API generate endpoint
+ */
 interface OllamaResponse {
   model: string;
   created_at: string;
@@ -7,6 +25,9 @@ interface OllamaResponse {
   done: boolean;
 }
 
+/**
+ * Request structure for Ollama API generate endpoint
+ */
 interface OllamaRequest {
   model: string;
   prompt: string;
@@ -17,6 +38,9 @@ interface OllamaRequest {
   };
 }
 
+/**
+ * Message structure for extension internal communication
+ */
 interface ExtensionMessage {
   action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings';
   text?: string;
@@ -24,6 +48,9 @@ interface ExtensionMessage {
   settings?: UserSettings;
 }
 
+/**
+ * Response structure for extension internal communication
+ */
 interface ExtensionResponse {
   success?: boolean;
   result?: string;
@@ -34,12 +61,18 @@ interface ExtensionResponse {
   settings?: UserSettings;
 }
 
+/**
+ * Configuration for AI model parameters
+ */
 interface ModelConfig {
   name: string;
   temperature: number;
   top_p: number;
 }
 
+/**
+ * User preferences and settings
+ */
 interface UserSettings {
   fastModel: ModelConfig;
   qualityModel: ModelConfig;
@@ -49,19 +82,32 @@ interface UserSettings {
   highlightChanges: boolean;
 }
 
-class OllamaService {
-  private baseUrl = 'http://localhost:11434';
+// ============================================================================
+// OLLAMA SERVICE CLASS
+// ============================================================================
 
+/**
+ * Service class for communicating with the Ollama API
+ * Handles all interactions with the local Ollama instance
+ */
+class OllamaService {
+  private readonly baseUrl: string = 'http://localhost:11434';
+  private readonly requestTimeout: number = 5000; // 5 seconds
+
+  /**
+   * Checks if Ollama service is running and accessible
+   * @returns Promise<boolean> - true if Ollama is available, false otherwise
+   */
   async checkOllamaStatus(): Promise<boolean> {
     try {
       console.log('Checking Ollama status at:', `${this.baseUrl}/api/tags`);
+      
       const response = await fetch(`${this.baseUrl}/api/tags`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        // Add timeout
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(this.requestTimeout)
       });
       
       console.log('Ollama response status:', response.status);
@@ -78,9 +124,18 @@ class OllamaService {
     }
   }
 
+  /**
+   * Retrieves list of available models from Ollama
+   * @returns Promise<string[]> - Array of model names
+   */
   async getAvailableModels(): Promise<string[]> {
     try {
       const response = await fetch(`${this.baseUrl}/api/tags`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       return data.models?.map((model: any) => model.name) || [];
     } catch (error) {
@@ -89,19 +144,25 @@ class OllamaService {
     }
   }
 
+  /**
+   * Improves text using the appropriate Ollama model
+   * @param text - The text to improve
+   * @param isShort - Whether to use fast model for short text
+   * @returns Promise<{result: string, purpose: string}> - Improved text and purpose
+   */
   async improveText(text: string, isShort: boolean = false): Promise<{ result: string; purpose: string }> {
     const models = await this.getModelConfig();
-    const model = isShort ? models.fast : models.quality;
+    const selectedModel = isShort ? models.fast : models.quality;
     
     const prompt = this.createPrompt(text);
     
     const request: OllamaRequest = {
-      model: model.name,
+      model: selectedModel.name,
       prompt,
       stream: false,
       options: {
-        temperature: model.temperature,
-        top_p: model.top_p
+        temperature: selectedModel.temperature,
+        top_p: selectedModel.top_p
       }
     };
 
@@ -151,6 +212,11 @@ class OllamaService {
     }
   }
 
+  /**
+   * Creates a structured prompt for text improvement
+   * @param text - The original text to improve
+   * @returns string - Formatted prompt for Ollama
+   */
   private createPrompt(text: string): string {
     return `You are a professional writing assistant. Rewrite the following text to make it clearer, more concise, and more professional. Only improve grammar, style, and clarity. Do not add new facts or change the meaning.
       IMPORTANT: You must respond with valid JSON only. No additional text before or after the JSON.
@@ -160,11 +226,17 @@ class OllamaService {
       }
       Original text: "${text}"
       JSON response:`;
-    }
+  }
 
+  /**
+   * Parses Ollama response text to extract improved text and purpose
+   * Handles both JSON and plain text responses with fallback strategies
+   * @param responseText - Raw response text from Ollama
+   * @returns {improved_text: string, purpose: string} - Parsed response data
+   */
   private parseOllamaResponse(responseText: string): { improved_text: string; purpose: string } {
     try {
-      // Try to parse as JSON first
+      // Strategy 1: Try to parse as JSON first
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const jsonStr = jsonMatch[0];
@@ -178,13 +250,13 @@ class OllamaService {
         }
       }
       
-      // Fallback: if JSON parsing fails, try to extract from text
+      // Strategy 2: Fallback - extract from text patterns
       const lines = responseText.split('\n').map(line => line.trim()).filter(line => line);
       
       let improvedText = '';
       let purpose = 'Text improvements made';
       
-      // Look for common patterns
+      // Look for common patterns in the response
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         
@@ -205,7 +277,7 @@ class OllamaService {
         }
       }
       
-      // If we still don't have improved text, use the first non-empty line
+      // Strategy 3: Use first non-empty line if no pattern found
       if (!improvedText && lines.length > 0) {
         improvedText = lines[0];
       }
@@ -226,6 +298,10 @@ class OllamaService {
     }
   }
 
+  /**
+   * Gets model configuration from user settings
+   * @returns Promise<{fast: ModelConfig, quality: ModelConfig}> - Model configurations
+   */
   private async getModelConfig(): Promise<{ fast: ModelConfig; quality: ModelConfig }> {
     try {
       const settings = await this.getUserSettings();
@@ -235,67 +311,86 @@ class OllamaService {
       };
     } catch (error) {
       console.error('Failed to load model config:', error);
-      return {
-        fast: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-        quality: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 }
-      };
+      return this.getDefaultModelConfig();
     }
   }
 
+  /**
+   * Retrieves user settings from Chrome storage
+   * @returns Promise<UserSettings> - User settings or defaults
+   */
   private async getUserSettings(): Promise<UserSettings> {
     try {
       const result = await chrome.storage.sync.get('userSettings');
-      return result.userSettings || {
-        fastModel: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-        qualityModel: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 },
-        autoShowPing: true,
-        pingIconPosition: 'right',
-        theme: 'light',
-        highlightChanges: true
-      };
+      return result.userSettings || this.getDefaultUserSettings();
     } catch (error) {
       console.error('Failed to load user settings:', error);
-      return {
-        fastModel: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-        qualityModel: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 },
-        autoShowPing: true,
-        pingIconPosition: 'right',
-        theme: 'light',
-        highlightChanges: true
-      };
+      return this.getDefaultUserSettings();
     }
+  }
+
+  /**
+   * Returns default model configuration
+   * @returns {fast: ModelConfig, quality: ModelConfig} - Default model configs
+   */
+  private getDefaultModelConfig(): { fast: ModelConfig; quality: ModelConfig } {
+    return {
+      fast: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
+      quality: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 }
+    };
+  }
+
+  /**
+   * Returns default user settings
+   * @returns UserSettings - Default user settings
+   */
+  private getDefaultUserSettings(): UserSettings {
+    const defaultModels = this.getDefaultModelConfig();
+    return {
+      fastModel: defaultModels.fast,
+      qualityModel: defaultModels.quality,
+      autoShowPing: true,
+      pingIconPosition: 'right',
+      theme: 'light',
+      highlightChanges: true
+    };
   }
 }
 
+// ============================================================================
+// SETTINGS MANAGER CLASS
+// ============================================================================
+
+/**
+ * Static utility class for managing user settings persistence
+ * Handles Chrome storage operations for user preferences
+ */
 class SettingsManager {
+  private static readonly STORAGE_KEY = 'userSettings';
+
+  /**
+   * Retrieves user settings from Chrome storage
+   * @returns Promise<UserSettings> - User settings or defaults
+   */
   static async getUserSettings(): Promise<UserSettings> {
     try {
-      const result = await chrome.storage.sync.get('userSettings');
-      return result.userSettings || {
-        fastModel: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-        qualityModel: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 },
-        autoShowPing: true,
-        pingIconPosition: 'right',
-        theme: 'light',
-        highlightChanges: true
-      };
+      const result = await chrome.storage.sync.get(this.STORAGE_KEY);
+      return result[this.STORAGE_KEY] || this.getDefaultUserSettings();
     } catch (error) {
       console.error('Failed to load user settings:', error);
-      return {
-        fastModel: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-        qualityModel: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 },
-        autoShowPing: true,
-        pingIconPosition: 'right',
-        theme: 'light',
-        highlightChanges: true
-      };
+      return this.getDefaultUserSettings();
     }
   }
 
+  /**
+   * Saves user settings to Chrome storage
+   * @param settings - User settings to save
+   * @returns Promise<void>
+   */
   static async saveUserSettings(settings: UserSettings): Promise<void> {
     try {
       await chrome.storage.sync.set({
-        userSettings: settings
+        [this.STORAGE_KEY]: settings
       });
       console.log('User settings saved successfully');
     } catch (error) {
@@ -303,11 +398,34 @@ class SettingsManager {
       throw error;
     }
   }
+
+  /**
+   * Returns default user settings
+   * @returns UserSettings - Default user settings
+   */
+  private static getDefaultUserSettings(): UserSettings {
+    return {
+      fastModel: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
+      qualityModel: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 },
+      autoShowPing: true,
+      pingIconPosition: 'right',
+      theme: 'light',
+      highlightChanges: true
+    };
+  }
 }
 
+// ============================================================================
+// SERVICE INSTANCE AND MESSAGE HANDLING
+// ============================================================================
+
+// Create singleton instance of Ollama service
 const ollamaService = new OllamaService();
 
-// Handle messages from content script and popup
+/**
+ * Main message handler for extension communication
+ * Routes messages between content scripts, popup, and background services
+ */
 chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendResponse) => {
   console.log('Background received message:', request.action);
   
@@ -336,7 +454,16 @@ chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendRes
   return true; // Keep message channel open for async response
 });
 
-async function handleImproveText(request: ExtensionMessage, sendResponse: (response: ExtensionResponse) => void) {
+// ============================================================================
+// MESSAGE HANDLER FUNCTIONS
+// ============================================================================
+
+/**
+ * Handles text improvement requests from content scripts
+ * @param request - Extension message containing text to improve
+ * @param sendResponse - Callback function to send response
+ */
+async function handleImproveText(request: ExtensionMessage, sendResponse: (response: ExtensionResponse) => void): Promise<void> {
   try {
     const result = await ollamaService.improveText(request.text!, request.isShort);
     console.log('Text improvement successful');
@@ -348,7 +475,11 @@ async function handleImproveText(request: ExtensionMessage, sendResponse: (respo
   }
 }
 
-async function handleCheckOllama(sendResponse: (response: ExtensionResponse) => void) {
+/**
+ * Handles Ollama status check requests
+ * @param sendResponse - Callback function to send response
+ */
+async function handleCheckOllama(sendResponse: (response: ExtensionResponse) => void): Promise<void> {
   try {
     console.log('Checking Ollama status...');
     const status = await ollamaService.checkOllamaStatus();
@@ -360,7 +491,11 @@ async function handleCheckOllama(sendResponse: (response: ExtensionResponse) => 
   }
 }
 
-async function handleGetModels(sendResponse: (response: ExtensionResponse) => void) {
+/**
+ * Handles requests to get available Ollama models
+ * @param sendResponse - Callback function to send response
+ */
+async function handleGetModels(sendResponse: (response: ExtensionResponse) => void): Promise<void> {
   try {
     console.log('Getting available models...');
     const models = await ollamaService.getAvailableModels();
@@ -373,7 +508,12 @@ async function handleGetModels(sendResponse: (response: ExtensionResponse) => vo
   }
 }
 
-async function handleSaveSettings(request: ExtensionMessage, sendResponse: (response: ExtensionResponse) => void) {
+/**
+ * Handles user settings save requests
+ * @param request - Extension message containing settings to save
+ * @param sendResponse - Callback function to send response
+ */
+async function handleSaveSettings(request: ExtensionMessage, sendResponse: (response: ExtensionResponse) => void): Promise<void> {
   try {
     console.log('Saving settings...');
     await SettingsManager.saveUserSettings(request.settings!);
@@ -385,7 +525,11 @@ async function handleSaveSettings(request: ExtensionMessage, sendResponse: (resp
   }
 }
 
-async function handleLoadSettings(sendResponse: (response: ExtensionResponse) => void) {
+/**
+ * Handles user settings load requests
+ * @param sendResponse - Callback function to send response
+ */
+async function handleLoadSettings(sendResponse: (response: ExtensionResponse) => void): Promise<void> {
   try {
     console.log('Loading settings...');
     const settings = await SettingsManager.getUserSettings();

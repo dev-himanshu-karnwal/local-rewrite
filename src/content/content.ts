@@ -1,5 +1,26 @@
-// Content script - Ping icon management and improvement panel
+/**
+ * Content Script for Local Text Improver Extension
+ * 
+ * This script manages the user interface elements on web pages:
+ * - Ping icons that appear next to input fields
+ * - Text improvement panels with suggestions
+ * - User interaction handling and text replacement
+ * 
+ * Key responsibilities:
+ * - Detecting input fields and adding ping icons
+ * - Managing text selection and improvement requests
+ * - Displaying improvement suggestions and handling user actions
+ * - Communicating with background script for AI processing
+ */
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Interface for ping icon management
+ * Represents a clickable icon that appears next to input fields
+ */
 interface PingIcon {
   element: HTMLElement;
   inputElement: HTMLInputElement | HTMLTextAreaElement;
@@ -8,6 +29,10 @@ interface PingIcon {
   destroy: () => void;
 }
 
+/**
+ * Interface for text improvement panel management
+ * Represents the popup panel that shows AI suggestions
+ */
 interface TextImprovementPanel {
   element: HTMLElement;
   show: (text: string, position: { x: number; y: number }) => void;
@@ -15,15 +40,28 @@ interface TextImprovementPanel {
   destroy: () => void;
 }
 
+// ============================================================================
+// PING ICON MANAGER CLASS
+// ============================================================================
+
+/**
+ * Manages ping icons that appear next to input fields
+ * Handles detection of input elements and icon positioning
+ */
 class PingIconManager {
   private pingIcons: PingIcon[] = [];
   private observer: MutationObserver | null = null;
+  private readonly minSelectionLength: number = 3;
 
   constructor() {
     this.setupMutationObserver();
     this.setupPingIcons();
   }
 
+  /**
+   * Sets up mutation observer to detect new input fields
+   * Automatically adds ping icons to dynamically created inputs
+   */
   private setupMutationObserver(): void {
     this.observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -42,6 +80,10 @@ class PingIconManager {
     });
   }
 
+  /**
+   * Checks an element and its children for input fields
+   * @param element - Element to check for input fields
+   */
   private checkForInputFields(element: Element): void {
     // Check if the element itself is an input or textarea
     if (this.isInputField(element)) {
@@ -55,6 +97,11 @@ class PingIconManager {
     });
   }
 
+  /**
+   * Determines if an element is a supported input field
+   * @param element - Element to check
+   * @returns boolean - true if element is a supported input field
+   */
   private isInputField(element: Element): boolean {
     const tagName = element.tagName.toLowerCase();
     const inputType = (element as HTMLInputElement).type?.toLowerCase();
@@ -65,6 +112,9 @@ class PingIconManager {
     );
   }
 
+  /**
+   * Sets up ping icons for all existing input fields on the page
+   */
   private setupPingIcons(): void {
     // Find all existing input fields and textareas
     const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="search"], textarea');
@@ -73,6 +123,10 @@ class PingIconManager {
     });
   }
 
+  /**
+   * Adds a ping icon to an input element if one doesn't already exist
+   * @param inputElement - Input element to add ping icon to
+   */
   private addPingIcon(inputElement: HTMLInputElement | HTMLTextAreaElement): void {
     // Check if ping icon already exists for this input
     if (this.pingIcons.some(icon => icon.inputElement === inputElement)) {
@@ -83,6 +137,11 @@ class PingIconManager {
     this.pingIcons.push(pingIcon);
   }
 
+  /**
+   * Creates a ping icon for an input element
+   * @param inputElement - Input element to create ping icon for
+   * @returns PingIcon - Created ping icon object
+   */
   private createPingIcon(inputElement: HTMLInputElement | HTMLTextAreaElement): PingIcon {
     const pingIcon = document.createElement('div');
     pingIcon.className = 'lre__text-improvement-ping';
@@ -102,7 +161,7 @@ class PingIconManager {
     // Show/hide ping icon based on text selection
     const updateVisibility = () => {
       const selection = this.getInputSelection(inputElement);
-      const hasSelection = selection && selection.length >= 3;
+      const hasSelection = selection && selection.length >= this.minSelectionLength;
       
       if (hasSelection) {
         pingIcon.style.display = 'block';
@@ -136,12 +195,22 @@ class PingIconManager {
     };
   }
 
+  /**
+   * Gets the currently selected text from an input element
+   * @param inputElement - Input element to get selection from
+   * @returns string - Selected text
+   */
   private getInputSelection(inputElement: HTMLInputElement | HTMLTextAreaElement): string {
     const start = inputElement.selectionStart || 0;
     const end = inputElement.selectionEnd || 0;
     return inputElement.value.substring(start, end);
   }
 
+  /**
+   * Positions a ping icon next to an input element
+   * @param pingIcon - Ping icon element to position
+   * @param inputElement - Input element to position relative to
+   */
   private positionPingIcon(pingIcon: HTMLElement, inputElement: HTMLInputElement | HTMLTextAreaElement): void {
     const rect = inputElement.getBoundingClientRect();
     const scrollX = window.scrollX;
@@ -153,9 +222,13 @@ class PingIconManager {
     pingIcon.style.zIndex = '10000';
   }
 
+  /**
+   * Handles click events on ping icons
+   * @param inputElement - Input element associated with the clicked ping icon
+   */
   private handlePingClick(inputElement: HTMLInputElement | HTMLTextAreaElement): void {
     const selectedText = this.getInputSelection(inputElement);
-    if (selectedText.length < 3) {
+    if (selectedText.length < this.minSelectionLength) {
       return;
     }
 
@@ -169,6 +242,10 @@ class PingIconManager {
     document.dispatchEvent(event);
   }
 
+  /**
+   * Cleans up ping icons and mutation observer
+   * Should be called when the extension is disabled or page unloads
+   */
   public cleanup(): void {
     // Clean up ping icons
     this.pingIcons.forEach(icon => icon.destroy());
@@ -182,22 +259,38 @@ class PingIconManager {
   }
 }
 
+// ============================================================================
+// IMPROVEMENT PANEL MANAGER CLASS
+// ============================================================================
+
+/**
+ * Manages the text improvement panel that shows AI suggestions
+ * Handles panel creation, positioning, and user interactions
+ */
 class ImprovementPanelManager {
   private panel: TextImprovementPanel | null = null;
   private currentInputText = '';
   private currentInputElement: HTMLInputElement | HTMLTextAreaElement | null = null;
   private isProcessing = false;
+  private readonly shortTextThreshold: number = 20; // words
 
   constructor() {
     this.setupEventListeners();
   }
 
+  /**
+   * Sets up event listeners for panel interactions
+   */
   private setupEventListeners(): void {
     document.addEventListener('click', this.handleClick.bind(this));
     document.addEventListener('keydown', this.handleKeydown.bind(this));
     document.addEventListener('lre__textImprovementRequest', this.handleTextImprovementRequest.bind(this) as EventListener);
   }
 
+  /**
+   * Handles click events to hide panel when clicking outside
+   * @param event - Mouse click event
+   */
   private handleClick(event: MouseEvent): void {
     // Hide panel if clicking outside of it
     if (this.panel && !this.panel.element.contains(event.target as Node)) {
@@ -205,6 +298,10 @@ class ImprovementPanelManager {
     }
   }
 
+  /**
+   * Handles keyboard events for panel control
+   * @param event - Keyboard event
+   */
   private handleKeydown(event: KeyboardEvent): void {
     // Hide panel on Escape key
     if (event.key === 'Escape') {
@@ -212,6 +309,10 @@ class ImprovementPanelManager {
     }
   }
 
+  /**
+   * Handles text improvement requests from ping icons
+   * @param event - Custom event containing text and input element
+   */
   private handleTextImprovementRequest(event: CustomEvent): void {
     const { text, inputElement } = event.detail;
     this.currentInputText = text;
@@ -220,6 +321,10 @@ class ImprovementPanelManager {
     this.improveText(text);
   }
 
+  /**
+   * Shows the improvement panel positioned relative to an input element
+   * @param inputElement - Input element to position panel relative to
+   */
   private showPanel(inputElement: HTMLInputElement | HTMLTextAreaElement): void {
     this.hidePanel(); // Remove existing panel
 
@@ -227,7 +332,7 @@ class ImprovementPanelManager {
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     
-    // Check if input is in top 1/3 of screen
+    // Check if input is in top 1/3 of screen to determine panel position
     const screenHeight = window.innerHeight;
     const inputTopRatio = rect.top / screenHeight;
     const showBelow = inputTopRatio < 0.33;
@@ -239,6 +344,9 @@ class ImprovementPanelManager {
     });
   }
 
+  /**
+   * Hides the improvement panel
+   */
   private hidePanel(): void {
     if (this.panel) {
       this.panel.hide();
@@ -246,6 +354,10 @@ class ImprovementPanelManager {
     }
   }
 
+  /**
+   * Creates the text improvement panel with all UI elements
+   * @returns TextImprovementPanel - Created panel object
+   */
   private createPanel(): TextImprovementPanel {
     const panel = document.createElement('div');
     panel.className = 'lre__text-improvement-panel';
@@ -292,7 +404,7 @@ class ImprovementPanelManager {
 
     document.body.appendChild(panel);
 
-    // Add event listeners
+    // Add event listeners for panel controls
     const closeBtn = panel.querySelector('.lre__close-btn') as HTMLButtonElement;
     const replaceBtn = panel.querySelector('.lre__replace-btn') as HTMLButtonElement;
     const copyBtn = panel.querySelector('.lre__copy-btn') as HTMLButtonElement;
@@ -323,6 +435,10 @@ class ImprovementPanelManager {
     };
   }
 
+  /**
+   * Sends text improvement request to background script
+   * @param text - Text to improve
+   */
   private async improveText(text: string): Promise<void> {
     if (this.isProcessing || !this.panel) return;
 
@@ -333,7 +449,7 @@ class ImprovementPanelManager {
       const response = await chrome.runtime.sendMessage({
         action: 'improveText',
         text,
-        isShort: text.split(' ').length <= 20
+        isShort: text.split(' ').length <= this.shortTextThreshold
       });
 
       if (response.success) {
@@ -348,6 +464,9 @@ class ImprovementPanelManager {
     }
   }
 
+  /**
+   * Shows loading state in the panel
+   */
   private showLoadingState(): void {
     if (!this.panel) return;
 
@@ -360,6 +479,11 @@ class ImprovementPanelManager {
     errorState.style.display = 'none';
   }
 
+  /**
+   * Shows the improved text suggestion in the panel
+   * @param suggestion - Improved text from AI
+   * @param purpose - Optional description of changes made
+   */
   private showSuggestion(suggestion: string, purpose?: string): void {
     if (!this.panel) return;
 
@@ -387,6 +511,12 @@ class ImprovementPanelManager {
     errorState.style.display = 'none';
   }
 
+  /**
+   * Highlights differences between original and improved text
+   * @param original - Original text
+   * @param improved - Improved text
+   * @returns string - HTML with highlighted changes
+   */
   private highlightChanges(original: string, improved: string): string {
     // Simple word-by-word comparison to highlight changes
     const originalWords = original.split(' ');
@@ -417,6 +547,10 @@ class ImprovementPanelManager {
     return highlighted.trim();
   }
 
+  /**
+   * Shows error state in the panel
+   * @param error - Error message to display
+   */
   private showError(error: string): void {
     if (!this.panel) return;
 
@@ -431,6 +565,9 @@ class ImprovementPanelManager {
     errorState.style.display = 'block';
   }
 
+  /**
+   * Replaces the selected text in the input element with the suggestion
+   */
   private replaceSelection(): void {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
     const text = suggestionText?.textContent || '';
@@ -467,6 +604,9 @@ class ImprovementPanelManager {
     }
   }
 
+  /**
+   * Copies the suggestion text to clipboard
+   */
   private copySuggestion(): void {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
     const text = suggestionText?.textContent || '';
@@ -492,6 +632,10 @@ class ImprovementPanelManager {
     }
   }
 
+  /**
+   * Cleans up the improvement panel
+   * Should be called when the extension is disabled or page unloads
+   */
   public cleanup(): void {
     // Clean up panel
     if (this.panel) {
@@ -501,6 +645,14 @@ class ImprovementPanelManager {
   }
 }
 
+// ============================================================================
+// MAIN EXTENSION CLASS AND INITIALIZATION
+// ============================================================================
+
+/**
+ * Main extension class that coordinates ping icons and improvement panels
+ * Acts as the central controller for the content script functionality
+ */
 class TextImprovementExtension {
   private pingIconManager: PingIconManager;
   private panelManager: ImprovementPanelManager;
@@ -510,24 +662,39 @@ class TextImprovementExtension {
     this.panelManager = new ImprovementPanelManager();
   }
 
+  /**
+   * Cleans up all extension resources
+   * Should be called when the extension is disabled or page unloads
+   */
   public cleanup(): void {
     this.pingIconManager.cleanup();
     this.panelManager.cleanup();
   }
 }
 
-// Initialize the extension when the page loads
+// ============================================================================
+// EXTENSION INITIALIZATION
+// ============================================================================
+
+// Global extension instance
 let extension: TextImprovementExtension | null = null;
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    extension = new TextImprovementExtension();
-  });
-} else {
+/**
+ * Initialize the extension when the page loads
+ * Handles both immediate initialization and DOM ready states
+ */
+function initializeExtension(): void {
   extension = new TextImprovementExtension();
 }
 
-// Cleanup on page unload
+// Initialize based on document ready state
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeExtension);
+} else {
+  initializeExtension();
+}
+
+// Cleanup on page unload to prevent memory leaks
 window.addEventListener('beforeunload', () => {
   if (extension) {
     extension.cleanup();

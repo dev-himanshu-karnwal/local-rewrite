@@ -1,5 +1,26 @@
-// Popup script for settings and configuration
+/**
+ * Popup Script for Local Text Improver Extension
+ * 
+ * This script manages the extension's popup interface where users can:
+ * - Check Ollama connection status
+ * - Configure AI model settings
+ * - Adjust temperature and top_p parameters
+ * - Save and load user preferences
+ * 
+ * Key responsibilities:
+ * - Ollama status monitoring and display
+ * - Model selection and configuration
+ * - Settings persistence and validation
+ * - User interface state management
+ */
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * User preferences and settings structure
+ */
 interface UserSettings {
   fastModel: ModelConfig;
   qualityModel: ModelConfig;
@@ -9,12 +30,18 @@ interface UserSettings {
   highlightChanges: boolean;
 }
 
+/**
+ * AI model configuration parameters
+ */
 interface ModelConfig {
   name: string;
   temperature: number;
   top_p: number;
 }
 
+/**
+ * Message structure for extension communication
+ */
 interface ExtensionMessage {
   action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings';
   text?: string;
@@ -22,6 +49,9 @@ interface ExtensionMessage {
   settings?: UserSettings;
 }
 
+/**
+ * Response structure for extension communication
+ */
 interface ExtensionResponse {
   success?: boolean;
   result?: string;
@@ -31,7 +61,16 @@ interface ExtensionResponse {
   settings?: UserSettings;
 }
 
+// ============================================================================
+// POPUP CONTROLLER CLASS
+// ============================================================================
+
+/**
+ * Main controller class for the popup interface
+ * Manages all UI interactions and communication with background script
+ */
 class PopupController {
+  // UI Elements
   private statusIndicator!: HTMLElement;
   private statusDot!: HTMLElement;
   private statusText!: HTMLElement;
@@ -43,12 +82,20 @@ class PopupController {
   private saveBtn!: HTMLButtonElement;
   private refreshBtn!: HTMLButtonElement;
 
+  // Configuration constants
+  private readonly requestTimeout: number = 10000; // 10 seconds
+  private readonly modelsTimeout: number = 5000; // 5 seconds
+
   constructor() {
     this.initializeElements();
     this.setupEventListeners();
     this.checkOllamaStatus();
   }
 
+  /**
+   * Initializes all DOM element references
+   * Must be called after DOM is loaded
+   */
   private initializeElements(): void {
     this.statusIndicator = document.getElementById('lre__statusIndicator')!;
     this.statusDot = this.statusIndicator.querySelector('.lre__status-dot')!;
@@ -62,6 +109,9 @@ class PopupController {
     this.refreshBtn = document.getElementById('lre__refreshStatus') as HTMLButtonElement;
   }
 
+  /**
+   * Sets up all event listeners for UI interactions
+   */
   private setupEventListeners(): void {
     this.saveBtn.addEventListener('click', () => this.saveSettings());
     this.refreshBtn.addEventListener('click', () => this.checkOllamaStatus());
@@ -71,6 +121,10 @@ class PopupController {
     this.setupSliderListeners('quality');
   }
 
+  /**
+   * Sets up slider event listeners for model configuration
+   * @param type - Model type ('fast' or 'quality')
+   */
   private setupSliderListeners(type: 'fast' | 'quality'): void {
     const tempSlider = document.getElementById(`lre__${type}TempSlider`) as HTMLInputElement;
     const tempValue = document.getElementById(`lre__${type}TempValue`) as HTMLElement;
@@ -86,13 +140,16 @@ class PopupController {
     });
   }
 
+  /**
+   * Checks Ollama connection status and updates UI accordingly
+   */
   private async checkOllamaStatus(): Promise<void> {
     this.setStatus('checking', 'Checking Ollama...');
     
     try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout')), 10000); // 10 second timeout
+        setTimeout(() => reject(new Error('Timeout')), this.requestTimeout);
       });
       
       const messagePromise = chrome.runtime.sendMessage({ action: 'checkOllama' });
@@ -115,10 +172,13 @@ class PopupController {
     }
   }
 
+  /**
+   * Loads available models from Ollama and populates select elements
+   */
   private async loadAvailableModels(): Promise<void> {
     try {
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout')), 5000);
+        setTimeout(() => reject(new Error('Timeout')), this.modelsTimeout);
       });
       
       const messagePromise = chrome.runtime.sendMessage({ action: 'getModels' });
@@ -144,6 +204,9 @@ class PopupController {
     }
   }
 
+  /**
+   * Loads user settings from storage and applies them to the UI
+   */
   private async loadUserSettings(): Promise<void> {
     try {
       const response = await chrome.runtime.sendMessage({ action: 'loadSettings' });
@@ -156,6 +219,11 @@ class PopupController {
     }
   }
 
+  /**
+   * Populates a model select element with available models
+   * @param select - Select element to populate
+   * @param models - Array of model names
+   */
   private populateModelSelect(select: HTMLSelectElement, models: string[]): void {
     select.innerHTML = '';
     
@@ -167,6 +235,10 @@ class PopupController {
     });
   }
 
+  /**
+   * Applies user settings to the UI elements
+   * @param settings - User settings to apply
+   */
   private populateSettings(settings: UserSettings): void {
     // Model settings - only set if the model exists in the select options
     const fastModelExists = Array.from(this.fastModelSelect.options).some(option => option.value === settings.fastModel.name);
@@ -183,6 +255,11 @@ class PopupController {
     this.updateSliderValues('quality', settings.qualityModel);
   }
 
+  /**
+   * Updates slider values for a specific model type
+   * @param type - Model type ('fast' or 'quality')
+   * @param config - Model configuration with temperature and top_p values
+   */
   private updateSliderValues(type: 'fast' | 'quality', config: ModelConfig): void {
     const tempSlider = document.getElementById(`lre__${type}TempSlider`) as HTMLInputElement;
     const tempValue = document.getElementById(`lre__${type}TempValue`) as HTMLElement;
@@ -195,6 +272,9 @@ class PopupController {
     topPValue.textContent = config.top_p.toString();
   }
 
+  /**
+   * Saves user settings to storage
+   */
   private async saveSettings(): Promise<void> {
     const fastModel = this.fastModelSelect.value;
     const qualityModel = this.qualityModelSelect.value;
@@ -252,6 +332,11 @@ class PopupController {
     }
   }
 
+  /**
+   * Updates the status display with appropriate styling and content
+   * @param type - Status type ('checking', 'connected', or 'error')
+   * @param text - Status text to display
+   */
   private setStatus(type: 'checking' | 'connected' | 'error', text: string): void {
     this.statusText.textContent = text;
     this.statusDot.className = `lre__status-dot lre__${type}`;
@@ -279,16 +364,25 @@ class PopupController {
     }
   }
 
+  /**
+   * Shows the models configuration section
+   */
   private showModelsSection(): void {
     this.modelsSection.style.display = 'block';
     this.errorSection.style.display = 'none';
   }
 
+  /**
+   * Shows the error section
+   */
   private showErrorSection(): void {
     this.modelsSection.style.display = 'none';
     this.errorSection.style.display = 'block';
   }
 
+  /**
+   * Shows error when no models are installed
+   */
   private showNoModelsError(): void {
     this.setStatus('error', 'No Models Installed');
     this.updateErrorContent(
@@ -304,6 +398,12 @@ class PopupController {
     this.showErrorSection();
   }
 
+  /**
+   * Updates error section content with custom title, description, and steps
+   * @param title - Error title
+   * @param description - Error description
+   * @param steps - Array of step instructions
+   */
   private updateErrorContent(title: string, description: string, steps: string[]): void {
     const errorTitle = this.errorSection.querySelector('h2') as HTMLElement;
     const errorDescription = this.errorSection.querySelector('p') as HTMLElement;
@@ -321,7 +421,14 @@ class PopupController {
   }
 }
 
-// Initialize popup when DOM is loaded
+// ============================================================================
+// POPUP INITIALIZATION
+// ============================================================================
+
+/**
+ * Initialize popup when DOM is loaded
+ * Creates and starts the popup controller
+ */
 document.addEventListener('DOMContentLoaded', () => {
   new PopupController();
 });
