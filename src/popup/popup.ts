@@ -37,16 +37,11 @@ class PopupController {
   private statusText!: HTMLElement;
   private statusCard!: HTMLElement;
   private modelsSection!: HTMLElement;
-  private uiSettingsSection!: HTMLElement;
   private errorSection!: HTMLElement;
   private fastModelSelect!: HTMLSelectElement;
   private qualityModelSelect!: HTMLSelectElement;
   private saveBtn!: HTMLButtonElement;
   private refreshBtn!: HTMLButtonElement;
-  private autoShowPingCheckbox!: HTMLInputElement;
-  private pingPositionSelect!: HTMLSelectElement;
-  private themeSelect!: HTMLSelectElement;
-  private highlightChangesCheckbox!: HTMLInputElement;
 
   constructor() {
     this.initializeElements();
@@ -60,16 +55,11 @@ class PopupController {
     this.statusText = this.statusIndicator.querySelector('.lre__status-text')!;
     this.statusCard = document.getElementById('lre__statusCard')!;
     this.modelsSection = document.getElementById('lre__modelsSection')!;
-    this.uiSettingsSection = document.getElementById('lre__uiSettingsSection')!;
     this.errorSection = document.getElementById('lre__errorSection')!;
     this.fastModelSelect = document.getElementById('lre__fastModelSelect') as HTMLSelectElement;
     this.qualityModelSelect = document.getElementById('lre__qualityModelSelect') as HTMLSelectElement;
     this.saveBtn = document.getElementById('lre__saveSettings') as HTMLButtonElement;
     this.refreshBtn = document.getElementById('lre__refreshStatus') as HTMLButtonElement;
-    this.autoShowPingCheckbox = document.getElementById('lre__autoShowPing') as HTMLInputElement;
-    this.pingPositionSelect = document.getElementById('lre__pingPosition') as HTMLSelectElement;
-    this.themeSelect = document.getElementById('lre__theme') as HTMLSelectElement;
-    this.highlightChangesCheckbox = document.getElementById('lre__highlightChanges') as HTMLInputElement;
   }
 
   private setupEventListeners(): void {
@@ -136,8 +126,17 @@ class PopupController {
       
       const models = response?.models || [];
       
+      if (models.length === 0) {
+        this.showNoModelsError();
+        return;
+      }
+      
       this.populateModelSelect(this.fastModelSelect, models);
       this.populateModelSelect(this.qualityModelSelect, models);
+      
+      // Auto-select first model for both fast and quality
+      this.fastModelSelect.value = models[0];
+      this.qualityModelSelect.value = models[0];
       
     } catch (error) {
       console.error('Failed to load models:', error);
@@ -158,7 +157,7 @@ class PopupController {
   }
 
   private populateModelSelect(select: HTMLSelectElement, models: string[]): void {
-    select.innerHTML = '<option value="">Select a model...</option>';
+    select.innerHTML = '';
     
     models.forEach(model => {
       const option = document.createElement('option');
@@ -169,17 +168,19 @@ class PopupController {
   }
 
   private populateSettings(settings: UserSettings): void {
-    // Model settings
-    this.fastModelSelect.value = settings.fastModel.name;
-    this.qualityModelSelect.value = settings.qualityModel.name;
+    // Model settings - only set if the model exists in the select options
+    const fastModelExists = Array.from(this.fastModelSelect.options).some(option => option.value === settings.fastModel.name);
+    const qualityModelExists = Array.from(this.qualityModelSelect.options).some(option => option.value === settings.qualityModel.name);
+    
+    if (fastModelExists) {
+      this.fastModelSelect.value = settings.fastModel.name;
+    }
+    if (qualityModelExists) {
+      this.qualityModelSelect.value = settings.qualityModel.name;
+    }
+    
     this.updateSliderValues('fast', settings.fastModel);
     this.updateSliderValues('quality', settings.qualityModel);
-
-    // UI settings
-    this.autoShowPingCheckbox.checked = settings.autoShowPing;
-    this.pingPositionSelect.value = settings.pingIconPosition;
-    this.themeSelect.value = settings.theme;
-    this.highlightChangesCheckbox.checked = settings.highlightChanges;
   }
 
   private updateSliderValues(type: 'fast' | 'quality', config: ModelConfig): void {
@@ -222,10 +223,10 @@ class PopupController {
       const settings: UserSettings = {
         fastModel: fastConfig,
         qualityModel: qualityConfig,
-        autoShowPing: this.autoShowPingCheckbox.checked,
-        pingIconPosition: this.pingPositionSelect.value as 'right' | 'left',
-        theme: this.themeSelect.value as 'light' | 'dark',
-        highlightChanges: this.highlightChangesCheckbox.checked
+        autoShowPing: true,
+        pingIconPosition: 'right',
+        theme: 'light',
+        highlightChanges: true
       };
 
       const response = await chrome.runtime.sendMessage({
@@ -280,14 +281,43 @@ class PopupController {
 
   private showModelsSection(): void {
     this.modelsSection.style.display = 'block';
-    this.uiSettingsSection.style.display = 'block';
     this.errorSection.style.display = 'none';
   }
 
   private showErrorSection(): void {
     this.modelsSection.style.display = 'none';
-    this.uiSettingsSection.style.display = 'none';
     this.errorSection.style.display = 'block';
+  }
+
+  private showNoModelsError(): void {
+    this.setStatus('error', 'No Models Installed');
+    this.updateErrorContent(
+      'No Models Found',
+      'Ollama is running but no models are installed. Please install at least one model:',
+      [
+        'Open terminal/command prompt',
+        'Run: <code>ollama pull llama3.2:3b</code>',
+        'Run: <code>ollama pull qwen2.5:7b</code>',
+        'Refresh this popup after installation'
+      ]
+    );
+    this.showErrorSection();
+  }
+
+  private updateErrorContent(title: string, description: string, steps: string[]): void {
+    const errorTitle = this.errorSection.querySelector('h2') as HTMLElement;
+    const errorDescription = this.errorSection.querySelector('p') as HTMLElement;
+    const errorSteps = this.errorSection.querySelector('ol') as HTMLElement;
+
+    errorTitle.textContent = title;
+    errorDescription.textContent = description;
+    
+    errorSteps.innerHTML = '';
+    steps.forEach(step => {
+      const li = document.createElement('li');
+      li.innerHTML = step;
+      errorSteps.appendChild(li);
+    });
   }
 }
 

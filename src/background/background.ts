@@ -27,6 +27,7 @@ interface ExtensionMessage {
 interface ExtensionResponse {
   success?: boolean;
   result?: string;
+  purpose?: string;
   error?: string;
   status?: boolean;
   models?: string[];
@@ -88,7 +89,7 @@ class OllamaService {
     }
   }
 
-  async improveText(text: string, isShort: boolean = false): Promise<string> {
+  async improveText(text: string, isShort: boolean = false): Promise<{ result: string; purpose: string }> {
     const models = await this.getModelConfig();
     const model = isShort ? models.fast : models.quality;
     
@@ -132,7 +133,17 @@ class OllamaService {
 
       const data: OllamaResponse = await response.json();
       console.log('Ollama response data:', data);
-      return data.response.trim();
+      
+      const responseText = data.response.trim();
+      console.log('Raw Ollama response:', responseText);
+      
+      const parsedResponse = this.parseOllamaResponse(responseText);
+      console.log('Parsed response:', parsedResponse);
+      
+      return {
+        result: parsedResponse.improved_text,
+        purpose: parsedResponse.purpose
+      };
     } catch (error) {
       console.error('Error improving text:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -141,11 +152,78 @@ class OllamaService {
   }
 
   private createPrompt(text: string): string {
-    return `You are a professional writing assistant. Rewrite the following text to make it clearer, more concise, and more professional. Only improve grammar, style, and clarity. Do not add new facts or change the meaning. Return only the improved text without any explanations or additional text.
+    return `You are a professional writing assistant. Rewrite the following text to make it clearer, more concise, and more professional. Only improve grammar, style, and clarity. Do not add new facts or change the meaning.
+      IMPORTANT: You must respond with valid JSON only. No additional text before or after the JSON.
+      Format: {
+        "improved_text": "your improved text here",
+        "purpose": "brief description of key changes made in 1 line"
+      }
+      Original text: "${text}"
+      JSON response:`;
+    }
 
-Original text: "${text}"
-
-Improved text:`;
+  private parseOllamaResponse(responseText: string): { improved_text: string; purpose: string } {
+    try {
+      // Try to parse as JSON first
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[0];
+        const parsed = JSON.parse(jsonStr);
+        
+        if (parsed.improved_text && parsed.purpose) {
+          return {
+            improved_text: parsed.improved_text.trim(),
+            purpose: parsed.purpose.trim()
+          };
+        }
+      }
+      
+      // Fallback: if JSON parsing fails, try to extract from text
+      const lines = responseText.split('\n').map(line => line.trim()).filter(line => line);
+      
+      let improvedText = '';
+      let purpose = 'Text improvements made';
+      
+      // Look for common patterns
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Look for "improved_text" or similar patterns
+        if (line.includes('improved_text') || line.includes('improved text') || line.includes('Improved text')) {
+          const textMatch = line.match(/["']([^"']+)["']/);
+          if (textMatch) {
+            improvedText = textMatch[1];
+          }
+        }
+        
+        // Look for "purpose" or similar patterns
+        if (line.includes('purpose') || line.includes('changes') || line.includes('improvements')) {
+          const purposeMatch = line.match(/["']([^"']+)["']/);
+          if (purposeMatch) {
+            purpose = purposeMatch[1];
+          }
+        }
+      }
+      
+      // If we still don't have improved text, use the first non-empty line
+      if (!improvedText && lines.length > 0) {
+        improvedText = lines[0];
+      }
+      
+      return {
+        improved_text: improvedText || responseText,
+        purpose: purpose
+      };
+      
+    } catch (error) {
+      console.error('Failed to parse Ollama response:', error);
+      
+      // Ultimate fallback: return the response as is
+      return {
+        improved_text: responseText,
+        purpose: 'Text improvements made'
+      };
+    }
   }
 
   private async getModelConfig(): Promise<{ fast: ModelConfig; quality: ModelConfig }> {
@@ -262,7 +340,7 @@ async function handleImproveText(request: ExtensionMessage, sendResponse: (respo
   try {
     const result = await ollamaService.improveText(request.text!, request.isShort);
     console.log('Text improvement successful');
-    sendResponse({ success: true, result });
+    sendResponse({ success: true, result: result.result, purpose: result.purpose });
   } catch (error) {
     console.error('Text improvement failed:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);

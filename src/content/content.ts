@@ -148,8 +148,8 @@ class PingIconManager {
     const scrollY = window.scrollY;
 
     pingIcon.style.position = 'absolute';
-    pingIcon.style.left = `${rect.right + scrollX + 8}px`;
-    pingIcon.style.top = `${rect.top + scrollY + (rect.height / 2) - 12}px`;
+    pingIcon.style.left = `${rect.right + scrollX - 32}px`; // 24px icon + 8px padding
+    pingIcon.style.top = `${rect.top + scrollY + 6}px`;
     pingIcon.style.zIndex = '10000';
   }
 
@@ -226,11 +226,16 @@ class ImprovementPanelManager {
     const rect = inputElement.getBoundingClientRect();
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
+    
+    // Check if input is in top 1/3 of screen
+    const screenHeight = window.innerHeight;
+    const inputTopRatio = rect.top / screenHeight;
+    const showBelow = inputTopRatio < 0.33;
 
     this.panel = this.createPanel();
     this.panel.show(this.currentInputText, {
       x: rect.left + scrollX,
-      y: rect.top + scrollY - 10 // Position above the input
+      y: showBelow ? rect.bottom + scrollY + 8 : rect.top + scrollY - 8
     });
   }
 
@@ -247,15 +252,12 @@ class ImprovementPanelManager {
     panel.innerHTML = `
       <div class="lre__panel-header">
         <div class="lre__header-left">
-          <span class="lre__star-icon">⭐</span>
-          <span class="lre__panel-title">Pro suggestion</span>
-          <span class="lre__separator">•</span>
-          <span class="lre__sample-text">Free sample</span>
+          <span class="lre__panel-title">Local Text Improver</span>
         </div>
         <button class="lre__close-btn" aria-label="Close">×</button>
       </div>
       <div class="lre__panel-content">
-        <div class="lre__suggestion-purpose">Fix grammar, spelling, and phrasing for clarity</div>
+        <div class="lre__suggestion-purpose" style="display: none;">Analyzing text improvements...</div>
         <div class="lre__loading-state">
           <div class="lre__spinner"></div>
           <span>Improving text...</span>
@@ -266,17 +268,19 @@ class ImprovementPanelManager {
             <div class="lre__suggestion-text"></div>
           </div>
           <div class="lre__suggestion-actions">
-            <button class="lre__action-btn lre__accept-btn">
+            <button class="lre__action-btn lre__replace-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 6L9 17l-5-5"></path>
               </svg>
-              Accept
+              Replace
             </button>
-            <div class="lre__feedback-options">
-              <span class="lre__feedback-text">Feedback</span>
-              <span class="lre__more-options">⋯</span>
-              <span class="lre__google-icon">G</span>
-            </div>
+            <button class="lre__action-btn lre__copy-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              </svg>
+              Copy
+            </button>
           </div>
         </div>
         <div class="lre__error-state" style="display: none;">
@@ -290,11 +294,13 @@ class ImprovementPanelManager {
 
     // Add event listeners
     const closeBtn = panel.querySelector('.lre__close-btn') as HTMLButtonElement;
-    const acceptBtn = panel.querySelector('.lre__accept-btn') as HTMLButtonElement;
+    const replaceBtn = panel.querySelector('.lre__replace-btn') as HTMLButtonElement;
+    const copyBtn = panel.querySelector('.lre__copy-btn') as HTMLButtonElement;
     const retryBtn = panel.querySelector('.lre__retry-btn') as HTMLButtonElement;
 
     closeBtn.addEventListener('click', () => this.hidePanel());
-    acceptBtn.addEventListener('click', () => this.replaceSelection());
+    replaceBtn.addEventListener('click', () => this.replaceSelection());
+    copyBtn.addEventListener('click', () => this.copySuggestion());
     retryBtn.addEventListener('click', () => this.improveText(this.currentInputText));
 
     return {
@@ -331,7 +337,7 @@ class ImprovementPanelManager {
       });
 
       if (response.success) {
-        this.showSuggestion(response.result);
+        this.showSuggestion(response.result, response.purpose);
       } else {
         this.showError(response.error);
       }
@@ -354,16 +360,26 @@ class ImprovementPanelManager {
     errorState.style.display = 'none';
   }
 
-  private showSuggestion(suggestion: string): void {
+  private showSuggestion(suggestion: string, purpose?: string): void {
     if (!this.panel) return;
 
     const loadingState = this.panel.element.querySelector('.lre__loading-state') as HTMLElement;
     const suggestionContent = this.panel.element.querySelector('.lre__suggestion-content') as HTMLElement;
     const suggestionText = this.panel.element.querySelector('.lre__suggestion-text') as HTMLElement;
+    const suggestionPurpose = this.panel.element.querySelector('.lre__suggestion-purpose') as HTMLElement;
     const errorState = this.panel.element.querySelector('.lre__error-state') as HTMLElement;
 
+    // Update purpose text if provided and show it
+    if (purpose) {
+      suggestionPurpose.textContent = purpose;
+      suggestionPurpose.style.display = 'block';
+    }
+
+    // Remove quotes from suggestion if present
+    const cleanSuggestion = suggestion.replace(/^["']|["']$/g, '');
+
     // Highlight changes in the suggestion text
-    const highlightedSuggestion = this.highlightChanges(this.currentInputText, suggestion);
+    const highlightedSuggestion = this.highlightChanges(this.currentInputText, cleanSuggestion);
     suggestionText.innerHTML = highlightedSuggestion;
     
     loadingState.style.display = 'none';
@@ -448,6 +464,31 @@ class ImprovementPanelManager {
       
       // Hide the panel
       this.hidePanel();
+    }
+  }
+
+  private copySuggestion(): void {
+    const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
+    const text = suggestionText?.textContent || '';
+
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        // Show brief feedback
+        const copyBtn = this.panel?.element.querySelector('.lre__copy-btn') as HTMLButtonElement;
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        copyBtn.style.background = '#28a745';
+        copyBtn.style.color = 'white';
+        
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+          copyBtn.style.background = '';
+          copyBtn.style.color = '';
+        }, 1500);
+      }).catch(err => {
+        console.error('Failed to copy text:', err);
+        alert('Failed to copy text to clipboard');
+      });
     }
   }
 
