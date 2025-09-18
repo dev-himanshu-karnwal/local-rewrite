@@ -220,7 +220,11 @@ class OllamaService {
    * @returns string - Formatted prompt for Ollama
    */
   private createPrompt(text: string): string {
-    return `You are a professional writing assistant. Rewrite the following text to make it clearer, more concise, and more professional. Only improve grammar, style, and clarity. Do not add new facts or change the meaning.
+    return `You are a professional writing assistant. Rewrite the following text to make it clearer, more concise, and more professional. 
+      Only improve grammar, style, and clarity. Do not add new facts or change the meaning. 
+      If original text string is a list then return the formatted response as a list in same format either numbered, bulleted or any other format. 
+      NOTE: If provided string has new line character then keep that into account while returning the response that if response can be a broken into multiple lines with new line character then insert new line character in response, don't overinclude new line character in response, just where its necessary or feels required by the original text context required.
+
       IMPORTANT: Only provide updated text if there is a real need for improvement. If the original text is already clear and professional, simply return the same sentence in "improved_text" and set "purpose" to "No change required" or something similar.
 
       You must respond with valid JSON only. Do NOT include any code block markers, markdown, or extra text before or after the JSON. The response must be a direct JSON string.
