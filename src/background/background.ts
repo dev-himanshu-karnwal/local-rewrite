@@ -175,7 +175,6 @@ class OllamaService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        mode: 'cors',
         body: JSON.stringify(request)
       });
 
@@ -306,7 +305,7 @@ class OllamaService {
   private getDefaultModelConfig(): { fast: ModelConfig; quality: ModelConfig } {
     return {
       fast: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-      quality: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 }
+      quality: { name: 'qwen2.5:7b-instruct', temperature: 0.4, top_p: 0.95 }
     };
   }
 
@@ -455,7 +454,7 @@ class SettingsManager {
   private static getDefaultUserSettings(): UserSettings {
     return {
       fastModel: { name: 'llama3.2:3b', temperature: 0.3, top_p: 0.9 },
-      qualityModel: { name: 'qwen2.5:7b', temperature: 0.4, top_p: 0.95 },
+      qualityModel: { name: 'qwen2.5:7b-instruct', temperature: 0.4, top_p: 0.95 },
       autoShowPing: true,
       pingIconPosition: 'right',
       theme: 'light',
