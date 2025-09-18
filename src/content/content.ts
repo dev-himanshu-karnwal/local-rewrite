@@ -452,7 +452,7 @@ class ImprovementPanelManager {
         isShort: text.split(' ').length <= this.shortTextThreshold
       });
 
-      if (response.success) {
+      if (response.isSuccess) {
         this.showSuggestion(response.result, response.purpose);
       } else {
         this.showError(response.error);
