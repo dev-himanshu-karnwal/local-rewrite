@@ -219,25 +219,35 @@ class OllamaService {
    * @returns string - Formatted prompt for Ollama
    */
   private createPrompt(text: string): string {
-    return `You are a professional writing assistant. Rewrite the following text to make it clearer, more concise, and more professional. 
-      Only improve grammar, style, and clarity. Do not add new facts or change the meaning. 
-      If original text string is a list then return the formatted response as a list in same format either numbered, bulleted or any other format. 
-      NOTE: If provided string has new line character then keep that into account while returning the response that if response can be a broken into multiple lines with new line character then insert new line character in response, don't overinclude new line character in response, just where its necessary or feels required by the original text context required.
-
-      IMPORTANT: Only provide updated text if there is a real need for improvement. If the original text is already clear and professional, simply return the same sentence in "improved_text" and set "purpose" to "No change required" or something similar.
-
-      You must respond with valid JSON only. Do NOT include any code block markers, markdown, or extra text before or after the JSON. The response must be a direct JSON string.
-
-      Format:
-      {
-        "improved_text": "your improved text here, or the original text if no change is needed. Only omit this field if you could not understand or rewrite the text.",
-        "purpose": "brief description of key changes made in 1 line, or 'No change required' if no changes were made",
-        "isSuccess": true, // true if you successfully understood and rewrote (or confirmed) the text, false if you could not
-        "error": "give a very human and normal error message here if you could not understand or rewrite the text, or omit this field if you successfully understood and rewrote/confirmed the text"
-      }
-
-      Original text: "${text}"`;
+    return `You are an advanced grammar, style, and clarity assistant designed to refine written text. 
+      Your goal is to make the text clearer, more concise, grammatically correct, and professional—while strictly preserving its original meaning and intent.
+      
+      Guidelines:
+        1. Correct grammar, punctuation, and spelling errors.
+        2. Improve readability, clarity, and flow by simplifying awkward or wordy phrasing.
+        3. Maintain the original meaning, facts, and tone. Do not add, remove, or reinterpret information.
+        4. Respect format:
+          - If input is a list (numbered, bulleted, or any structured list), return it in the same format.
+          - Preserve line breaks where they naturally aid readability. Do not insert unnecessary breaks.
+          - You can add two or more new lines to the text to make it more readable and formatted.
+        5. If the text is already clear and professional, keep it unchanged.
+        6. Be strict about JSON compliance. Do not output anything outside the required JSON format.
+      
+      Error Handling:
+        - If the input is empty, gibberish, or cannot be improved, return "isSuccess": false and include a human-friendly "error".
+      
+      Output Format (must be valid JSON):
+        {
+          "improved_text": "the improved text here, or original text if no changes were needed",
+          "purpose": "1-line summary of key improvements, or 'No change required' if unchanged",
+          "isSuccess": true, // false only if text could not be processed
+          "error": "human-friendly error if failed, omit if successful"
+        }
+      
+      Original text: """${text}"""
+    `;
   }
+  
 
   /**
    * Parses Ollama response text to extract improved text and purpose

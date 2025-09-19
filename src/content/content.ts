@@ -41,6 +41,33 @@ interface TextImprovementPanel {
 }
 
 // ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Finds the effective z-index by checking the element and its ancestors
+ * @param element - Element to check
+ * @returns number - The highest z-index in the hierarchy, or 10000 if none found
+ */
+function getEffectiveZIndex(element: Element): number {
+  let current: Element | null = element;
+  let maxZIndex = 0;
+  
+  while (current && current !== document.body) {
+    const zIndex = parseInt(window.getComputedStyle(current).zIndex);
+    
+    if (!isNaN(zIndex) && zIndex > maxZIndex) {
+      maxZIndex = zIndex;
+    }
+    
+    current = current.parentElement;
+  }
+  
+  // Return found z-index + offset, or a high default value
+  return maxZIndex > 0 ? maxZIndex + 10 : 10000;
+}
+
+// ============================================================================
 // PING ICON MANAGER CLASS
 // ============================================================================
 
@@ -175,6 +202,7 @@ class PingIconManager {
     pingIcon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       this.handlePingClick(inputElement);
     });
 
@@ -236,10 +264,13 @@ class PingIconManager {
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
 
+    // Get effective z-index from input hierarchy
+    const effectiveZIndex = getEffectiveZIndex(inputElement);
+
     pingIcon.style.position = 'absolute';
     pingIcon.style.left = `${rect.right + scrollX - 32}px`; // 24px icon + 8px padding
     pingIcon.style.top = `${rect.top + scrollY + 6}px`;
-    pingIcon.style.zIndex = '10000';
+    pingIcon.style.zIndex = `${effectiveZIndex}`;
   }
 
   /**
@@ -357,7 +388,14 @@ class ImprovementPanelManager {
     const inputTopRatio = rect.top / screenHeight;
     const showBelow = inputTopRatio < 0.33;
 
+    // Get effective z-index from input hierarchy
+    const effectiveZIndex = getEffectiveZIndex(inputElement);
+
     this.panel = this.createPanel();
+    
+    // Set z-index for the panel (slightly higher than the input's hierarchy)
+    this.panel.element.style.zIndex = `${effectiveZIndex + 5}`;
+
     this.panel.show(this.currentInputText, {
       x: rect.left + scrollX,
       y: showBelow ? rect.bottom + scrollY + 8 : rect.top + scrollY - 8
