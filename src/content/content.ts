@@ -61,14 +61,19 @@ class PingIconManager {
   /**
    * Sets up mutation observer to detect new input fields
    * Automatically adds ping icons to dynamically created inputs
+   * Cleans up ping icons for removed input fields
    */
   private setupMutationObserver(): void {
     this.observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            this.checkForInputFields(element);
+            this.checkForInputFields(node as Element);
+          }
+        });
+        mutation.removedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            this.cleanupRemovedInputs(node as Element);
           }
         });
       });
@@ -91,9 +96,24 @@ class PingIconManager {
     }
 
     // Check children for input fields
-    const inputs = element.querySelectorAll('input[type="text"], input[type="email"], input[type="search"], textarea');
+    const inputs = element.querySelectorAll('input[type="text"], input[type="search"], textarea');
     inputs.forEach(input => {
       this.addPingIcon(input as HTMLInputElement | HTMLTextAreaElement);
+    });
+  }
+
+  /**
+   * Cleans up ping icons for removed input fields
+   * @param removedElement - Element that was removed
+   */
+  private cleanupRemovedInputs(removedElement: Element): void {
+    // Find and remove ping icons for inputs that were removed
+    this.pingIcons = this.pingIcons.filter(icon => {
+      if (!document.contains(icon.inputElement) || icon.inputElement === removedElement) {
+        icon.destroy();
+        return false;
+      }
+      return true;
     });
   }
 
@@ -107,7 +127,7 @@ class PingIconManager {
     const inputType = (element as HTMLInputElement).type?.toLowerCase();
     
     return (
-      (tagName === 'input' && ['text', 'email', 'search'].includes(inputType || '')) ||
+      (tagName === 'input' && ['text', 'search'].includes(inputType || '')) ||
       tagName === 'textarea'
     );
   }
@@ -117,7 +137,7 @@ class PingIconManager {
    */
   private setupPingIcons(): void {
     // Find all existing input fields and textareas
-    const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="search"], textarea');
+    const inputs = document.querySelectorAll('input[type="text"], input[type="search"], textarea');
     inputs.forEach(input => {
       this.addPingIcon(input as HTMLInputElement | HTMLTextAreaElement);
     });
