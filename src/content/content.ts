@@ -195,10 +195,61 @@ class PingIconManager {
     pingIcon.innerHTML = '✨';
     pingIcon.title = 'Improve selected text with AI';
 
-    // Position the ping icon next to the input
-    this.positionPingIcon(pingIcon, inputElement);
+    // Style the icon to appear inside input
+    Object.assign(pingIcon.style, {
+      position: 'fixed', // fixed relative to viewport
+      width: '20px',
+      height: '20px',
+      lineHeight: '20px',
+      textAlign: 'center',
+      cursor: 'pointer',
+      pointerEvents: 'auto',
+      zIndex: '9999',
+      display: 'none',     
+    });
 
-    // Add click handler
+    document.body.appendChild(pingIcon);
+
+    // Function to update icon position dynamically
+    const updatePosition = () => {
+      const rect = inputElement.getBoundingClientRect();
+      pingIcon.style.top = `${rect.top + 5}px`; // vertically center
+      pingIcon.style.left = `${rect.right - 30}px`; // 4px inside right edge
+    };
+
+    // Show/hide icon based on selection
+    const updateVisibility = () => {
+      const selectionLength = (inputElement.selectionEnd || 0) - (inputElement.selectionStart || 0);
+      if (selectionLength >= this.minSelectionLength) {
+        pingIcon.style.display = 'block';
+        updatePosition();
+      } else {
+        pingIcon.style.display = 'none';
+      }
+    };
+
+    // Event listeners for input selection
+    inputElement.addEventListener('mouseup', updateVisibility);
+    inputElement.addEventListener('keyup', updateVisibility);
+    inputElement.addEventListener('select', updateVisibility);
+    inputElement.addEventListener('focus', updateVisibility);
+    inputElement.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
+          pingIcon.style.display = 'none';
+        }
+      }, 100);
+    });
+
+    // Recalculate position on scroll or resize (works for modals too)
+    window.addEventListener('scroll', () => {
+      if (pingIcon.style.display === 'block') updatePosition();
+    });
+    window.addEventListener('resize', () => {
+      if (pingIcon.style.display === 'block') updatePosition();
+    });
+
+    // Click handler
     pingIcon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -206,40 +257,12 @@ class PingIconManager {
       this.handlePingClick(inputElement);
     });
 
-    // Show/hide ping icon based on text selection
-    const updateVisibility = () => {
-      const selection = this.getInputSelection(inputElement);
-      const hasSelection = selection && selection.length >= this.minSelectionLength;
-      
-      if (hasSelection) {
-        pingIcon.style.display = 'block';
-      } else {
-        pingIcon.style.display = 'none';
-      }
-    };
-
-    // Listen for selection changes
-    inputElement.addEventListener('mouseup', updateVisibility);
-    inputElement.addEventListener('keyup', updateVisibility);
-    inputElement.addEventListener('select', updateVisibility);
-    inputElement.addEventListener('focus', updateVisibility);
-    inputElement.addEventListener('blur', () => {
-      setTimeout(() => pingIcon.style.display = 'none', 200);
-    });
-
-    // Initial visibility check
-    updateVisibility();
-
-    document.body.appendChild(pingIcon);
-
     return {
       element: pingIcon,
       inputElement,
-      show: () => pingIcon.style.display = 'block',
-      hide: () => pingIcon.style.display = 'none',
-      destroy: () => {
-        pingIcon.remove();
-      }
+      show: () => { pingIcon.style.display = 'block'; updatePosition(); },
+      hide: () => { pingIcon.style.display = 'none'; },
+      destroy: () => { pingIcon.remove(); }
     };
   }
 
@@ -252,25 +275,6 @@ class PingIconManager {
     const start = inputElement.selectionStart || 0;
     const end = inputElement.selectionEnd || 0;
     return inputElement.value.substring(start, end);
-  }
-
-  /**
-   * Positions a ping icon next to an input element
-   * @param pingIcon - Ping icon element to position
-   * @param inputElement - Input element to position relative to
-   */
-  private positionPingIcon(pingIcon: HTMLElement, inputElement: HTMLInputElement | HTMLTextAreaElement): void {
-    const rect = inputElement.getBoundingClientRect();
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-
-    // Get effective z-index from input hierarchy
-    const effectiveZIndex = getEffectiveZIndex(inputElement);
-
-    pingIcon.style.position = 'absolute';
-    pingIcon.style.left = `${rect.right + scrollX - 32}px`; // 24px icon + 8px padding
-    pingIcon.style.top = `${rect.top + scrollY + 6}px`;
-    pingIcon.style.zIndex = `${effectiveZIndex}`;
   }
 
   /**
