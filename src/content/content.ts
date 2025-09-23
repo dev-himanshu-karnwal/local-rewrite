@@ -23,7 +23,7 @@
  */
 interface PingIcon {
   element: HTMLElement;
-  inputElement: HTMLInputElement | HTMLTextAreaElement;
+  inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLElement;
   show: () => void;
   hide: () => void;
   destroy: () => void;
@@ -116,16 +116,23 @@ class PingIconManager {
    * Checks an element and its children for input fields
    * @param element - Element to check for input fields
    */
-  private checkForInputFields(element: Element): void {
+  private checkForInputFields(element: Element): void {    
     // Check if the element itself is an input or textarea
     if (this.isInputField(element)) {
       this.addPingIcon(element as HTMLInputElement | HTMLTextAreaElement);
     }
 
     // Check children for input fields
-    const inputs = element.querySelectorAll('input[type="text"], input[type="search"], textarea');
+    const inputs = element.querySelectorAll('input[type="text"], input[type="search"], textarea');    
     inputs.forEach(input => {
       this.addPingIcon(input as HTMLInputElement | HTMLTextAreaElement);
+    });inputs.forEach(input => {
+      this.addPingIcon(input as HTMLInputElement | HTMLTextAreaElement);
+    });
+
+    const editors = document.querySelectorAll<HTMLElement>('.ProseMirror[role="textbox"]');
+    editors.forEach(editor => {
+      this.addEditorPingIcon(editor);
     });
   }
 
@@ -189,7 +196,7 @@ class PingIconManager {
    * @param inputElement - Input element to create ping icon for
    * @returns PingIcon - Created ping icon object
    */
-  private createPingIcon(inputElement: HTMLInputElement | HTMLTextAreaElement): PingIcon {
+  private createPingIcon(inputElement: HTMLInputElement | HTMLTextAreaElement): PingIcon {    
     const pingIcon = document.createElement('div');
     pingIcon.className = 'lre__text-improvement-ping';
     pingIcon.innerHTML = '✨';
@@ -265,6 +272,151 @@ class PingIconManager {
       destroy: () => { pingIcon.remove(); }
     };
   }
+
+
+
+
+
+  
+
+  private addEditorPingIcon(editor: HTMLElement): void {
+  // Avoid duplicates
+  if (this.pingIcons.some(icon => icon.inputElement === editor)) {
+    return;
+  }
+
+  const pingIcon = this.createEditorPingIcon(editor);
+  if (pingIcon) {
+    this.pingIcons.push(pingIcon);
+  }
+}
+
+private lastSelectionText: string = "";
+
+private createEditorPingIcon(editor: HTMLElement): PingIcon | null {
+  const pingIcon = document.createElement('div');
+  pingIcon.className = 'lre__text-improvement-ping';
+  pingIcon.innerHTML = '✨';
+  pingIcon.title = 'Improve selected text with AI';
+
+  Object.assign(pingIcon.style, {
+    position: 'absolute',
+    width: '20px',
+    height: '20px',
+    lineHeight: '20px',
+    textAlign: 'center',
+    cursor: 'pointer',
+    pointerEvents: 'auto',
+    zIndex: '9999',
+    display: 'none',
+  });
+
+  // Find container (ProseMirror parent)
+  const container = editor.closest('.ak-editor-content-area') as HTMLElement;
+  if (!container) return null;
+
+  // Ensure container is positioned
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
+
+  container.appendChild(pingIcon);
+
+  const updatePosition = () => {
+    const rect = container.getBoundingClientRect();
+    pingIcon.style.top = `8px`;
+    pingIcon.style.left = `${rect.width - 28}px`;
+  };
+
+  const updateVisibility = () => {
+    const selection = window.getSelection();
+    console.log("Selection-->", selection);
+    
+    const selectedText = selection?.toString().trim() ?? "";
+    console.log("selectedText", selectedText);
+    
+    if (
+      selection &&
+      selection.rangeCount > 0 &&
+      !selection.isCollapsed &&
+      selectedText.length >= this.minSelectionLength && // 👈 only if some text is actually selected
+      editor.contains(selection.anchorNode)
+    ) {
+      this.lastSelectionText = selection.toString();
+      pingIcon.style.display = 'block';
+      updatePosition();
+    } else {
+      pingIcon.style.display = 'none';
+    }
+  };
+
+  // Attach listeners once
+  const visibilityHandler = () => updateVisibility();
+  const blurHandler = () => {
+    setTimeout(() => {
+      if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
+        pingIcon.style.display = 'none';
+      }
+    }, 100);
+  };
+
+  editor.addEventListener('mouseup', visibilityHandler);
+  editor.addEventListener('keyup', visibilityHandler);
+  editor.addEventListener('focus', visibilityHandler);
+  editor.addEventListener('blur', blurHandler);
+
+  window.addEventListener('scroll', () => {
+    if (pingIcon.style.display === 'block') updatePosition();
+  });
+  window.addEventListener('resize', () => {
+    if (pingIcon.style.display === 'block') updatePosition();
+  });
+
+  pingIcon.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    this.handleEditorPingIconClick(editor);
+  });
+
+  return {
+    element: pingIcon,
+    inputElement: editor,
+    show: () => { pingIcon.style.display = 'block'; updatePosition(); },
+    hide: () => { pingIcon.style.display = 'none'; },
+    destroy: () => {
+      pingIcon.remove();
+      editor.removeEventListener('mouseup', visibilityHandler);
+      editor.removeEventListener('keyup', visibilityHandler);
+      editor.removeEventListener('focus', visibilityHandler);
+      editor.removeEventListener('blur', blurHandler);
+    }
+  };
+}
+
+private handleEditorPingIconClick(inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLElement): void {  
+  
+  let selectedText = "";
+  
+  if (inputElement instanceof HTMLInputElement || inputElement instanceof HTMLTextAreaElement) {
+    // For standard inputs
+    selectedText = this.getInputSelection(inputElement);
+  } else {
+    // For ProseMirror / contentEditable
+    selectedText = this.lastSelectionText;
+  }
+
+  if (selectedText.length < this.minSelectionLength) {
+    return;
+  }
+
+  const event = new CustomEvent('lre__textImprovementRequest', {
+    detail: {
+      text: selectedText,
+      inputElement
+    }
+  });
+  document.dispatchEvent(event);
+}
 
   /**
    * Gets the currently selected text from an input element
