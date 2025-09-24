@@ -280,143 +280,147 @@ class PingIconManager {
   
 
   private addEditorPingIcon(editor: HTMLElement): void {
-  // Avoid duplicates
-  if (this.pingIcons.some(icon => icon.inputElement === editor)) {
-    return;
-  }
-
-  const pingIcon = this.createEditorPingIcon(editor);
-  if (pingIcon) {
-    this.pingIcons.push(pingIcon);
-  }
-}
-
-private lastSelectionText: string = "";
-
-private createEditorPingIcon(editor: HTMLElement): PingIcon | null {
-  const pingIcon = document.createElement('div');
-  pingIcon.className = 'lre__text-improvement-ping';
-  pingIcon.innerHTML = '✨';
-  pingIcon.title = 'Improve selected text with AI';
-
-  Object.assign(pingIcon.style, {
-    position: 'absolute',
-    width: '20px',
-    height: '20px',
-    lineHeight: '20px',
-    textAlign: 'center',
-    cursor: 'pointer',
-    pointerEvents: 'auto',
-    zIndex: '9999',
-    display: 'none',
-  });
-
-  // Find container (ProseMirror parent)
-  const container = editor.closest('.ak-editor-content-area') as HTMLElement;
-  if (!container) return null;
-
-  // Ensure container is positioned
-  if (getComputedStyle(container).position === 'static') {
-    container.style.position = 'relative';
-  }
-
-  container.appendChild(pingIcon);
-
-  const updatePosition = () => {
-    const rect = container.getBoundingClientRect();
-    pingIcon.style.top = `8px`;
-    pingIcon.style.left = `${rect.width - 28}px`;
-  };
-
-  const updateVisibility = () => {
-    const selection = window.getSelection();
-    console.log("Selection-->", selection);
-    
-    const selectedText = selection?.toString().trim() ?? "";
-    console.log("selectedText", selectedText);
-    
-    if (
-      selection &&
-      selection.rangeCount > 0 &&
-      !selection.isCollapsed &&
-      selectedText.length >= this.minSelectionLength && // 👈 only if some text is actually selected
-      editor.contains(selection.anchorNode)
-    ) {
-      this.lastSelectionText = selection.toString();
-      pingIcon.style.display = 'block';
-      updatePosition();
-    } else {
-      pingIcon.style.display = 'none';
+    // Avoid duplicates    
+    if (this.pingIcons.some(icon => icon.inputElement === editor)) {
+      return;
     }
-  };
 
-  // Attach listeners once
-  const visibilityHandler = () => updateVisibility();
-  const blurHandler = () => {
-    setTimeout(() => {
-      if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
+    const pingIcon = this.createEditorPingIcon(editor);
+    if (pingIcon) {
+      this.pingIcons.push(pingIcon);
+    }
+  }
+
+  private lastSelectionText: string = "";
+
+  private createEditorPingIcon(editor: HTMLElement): PingIcon | null {
+    const pingIcon = document.createElement('div');
+    pingIcon.className = 'lre__text-improvement-ping';
+    pingIcon.innerHTML = '✨';
+    pingIcon.title = 'Improve selected text with AI';
+
+    Object.assign(pingIcon.style, {
+      position: 'absolute',
+      width: '20px',
+      height: '20px',
+      lineHeight: '20px',
+      textAlign: 'center',
+      cursor: 'pointer',
+      pointerEvents: 'auto',
+      zIndex: '9999',
+      display: 'none',
+    });
+
+    // Find container (ProseMirror parent)
+    const container = editor.closest('.ak-editor-content-area') as HTMLElement;
+    if (!container) return null;
+
+    // Ensure container is positioned
+    if (getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
+
+    container.appendChild(pingIcon);
+
+    const updatePosition = () => {
+      const rect = container.getBoundingClientRect();
+      pingIcon.style.top = `8px`;
+      pingIcon.style.left = `${rect.width - 28}px`;
+    };
+
+    const updateVisibility = () => {
+      const selection = window.getSelection();
+      console.log("Selection-->", selection);
+
+      const selectedText = selection?.toString().trim() ?? "";
+      console.log("selectedText", selectedText);
+
+      if (
+        selection &&
+        selection.rangeCount > 0 &&
+        !selection.isCollapsed &&
+        selectedText.length >= this.minSelectionLength && // 👈 only if some text is actually selected
+        editor.contains(selection.anchorNode)
+      ) {
+        this.lastSelectionText = selection.toString();
+        pingIcon.style.display = 'block';
+        updatePosition();
+      } else {
         pingIcon.style.display = 'none';
       }
-    }, 100);
-  };
+    };
 
-  editor.addEventListener('mouseup', visibilityHandler);
-  editor.addEventListener('keyup', visibilityHandler);
-  editor.addEventListener('focus', visibilityHandler);
-  editor.addEventListener('blur', blurHandler);
+    // Attach listeners once
+    const visibilityHandler = () => updateVisibility();
+    const blurHandler = () => {
+      setTimeout(() => {
+        if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
+          pingIcon.style.display = 'none';
+        }
+      }, 100);
+    };
 
-  window.addEventListener('scroll', () => {
-    if (pingIcon.style.display === 'block') updatePosition();
-  });
-  window.addEventListener('resize', () => {
-    if (pingIcon.style.display === 'block') updatePosition();
-  });
+    editor.addEventListener('mouseup', visibilityHandler);
+    editor.addEventListener('keyup', visibilityHandler);
+    editor.addEventListener('focus', visibilityHandler);
+    editor.addEventListener('blur', blurHandler);
 
-  pingIcon.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    this.handleEditorPingIconClick(editor);
-  });
+    window.addEventListener('scroll', () => {
+      if (pingIcon.style.display === 'block') updatePosition();
+    });
+    window.addEventListener('resize', () => {
+      if (pingIcon.style.display === 'block') updatePosition();
+    });
 
-  return {
-    element: pingIcon,
-    inputElement: editor,
-    show: () => { pingIcon.style.display = 'block'; updatePosition(); },
-    hide: () => { pingIcon.style.display = 'none'; },
-    destroy: () => {
-      pingIcon.remove();
-      editor.removeEventListener('mouseup', visibilityHandler);
-      editor.removeEventListener('keyup', visibilityHandler);
-      editor.removeEventListener('focus', visibilityHandler);
-      editor.removeEventListener('blur', blurHandler);
-    }
-  };
-}
+    pingIcon.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleEditorPingIconClick(editor);
+    });
 
-private handleEditorPingIconClick(inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLElement): void {  
-  
-  let selectedText = "";
-  
-  if (inputElement instanceof HTMLInputElement || inputElement instanceof HTMLTextAreaElement) {
-    // For standard inputs
-    selectedText = this.getInputSelection(inputElement);
-  } else {
-    // For ProseMirror / contentEditable
-    selectedText = this.lastSelectionText;
+    return {
+      element: pingIcon,
+      inputElement: editor,
+      show: () => { pingIcon.style.display = 'block'; updatePosition(); },
+      hide: () => { pingIcon.style.display = 'none'; },
+      destroy: () => {
+        pingIcon.remove();
+        editor.removeEventListener('mouseup', visibilityHandler);
+        editor.removeEventListener('keyup', visibilityHandler);
+        editor.removeEventListener('focus', visibilityHandler);
+        editor.removeEventListener('blur', blurHandler);
+      }
+    };
   }
 
-  if (selectedText.length < this.minSelectionLength) {
-    return;
+  private handleEditorPingIconClick(inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLElement): void {  
+    let selectedText = "";
+    if (inputElement instanceof HTMLInputElement || inputElement instanceof HTMLTextAreaElement) {
+      // For standard inputs
+      selectedText = this.getInputSelection(inputElement);
+    } else {
+      // For ProseMirror / contentEditable
+      selectedText = this.getSelectedTextFromProseMirror(inputElement);
+      if(selectedText === "")      
+        selectedText = this.lastSelectionText;
+    }
+
+
+    if (selectedText.length < this.minSelectionLength) {
+      return;
+    }
+
+    const event = new CustomEvent('lre__textImprovementRequestForEditor', {
+      detail: {
+        text: selectedText,
+        inputElement
+      }
+    });
+    document.dispatchEvent(event);
   }
 
-  const event = new CustomEvent('lre__textImprovementRequest', {
-    detail: {
-      text: selectedText,
-      inputElement
-    }
-  });
-  document.dispatchEvent(event);
-}
+
+  
 
   /**
    * Gets the currently selected text from an input element
@@ -428,6 +432,18 @@ private handleEditorPingIconClick(inputElement: HTMLInputElement | HTMLTextAreaE
     const end = inputElement.selectionEnd || 0;
     return inputElement.value.substring(start, end);
   }
+
+  private getSelectedTextFromProseMirror(editor: HTMLElement): string {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return "";
+
+  const range = selection.getRangeAt(0);
+
+  // Make sure the selection is inside the editor
+  if (!editor.contains(range.commonAncestorContainer)) return "";
+
+  return selection.toString();
+}
 
   /**
    * Handles click events on ping icons
@@ -480,6 +496,8 @@ class ImprovementPanelManager {
   private currentInputElement: HTMLInputElement | HTMLTextAreaElement | null = null;
   private isProcessing = false;
   private readonly shortTextThreshold: number = 20; // words
+  private proseMirrorEditor: HTMLElement | null = null;
+  private changingProseMirror: string | null = null;
 
   constructor() {
     this.setupEventListeners();
@@ -491,7 +509,9 @@ class ImprovementPanelManager {
   private setupEventListeners(): void {
     document.addEventListener('click', this.handleClick.bind(this));
     document.addEventListener('keydown', this.handleKeydown.bind(this));
-    document.addEventListener('lre__textImprovementRequest', this.handleTextImprovementRequest.bind(this) as EventListener);
+    document.addEventListener('lre__textImprovementRequest', this.handleTextImprovementRequest.bind(this) as EventListener);    
+    document.addEventListener('lre__textImprovementRequestForEditor', this.handleTextImprovementRequestForEditor.bind(this) as EventListener);    
+
   }
 
   /**
@@ -520,13 +540,49 @@ class ImprovementPanelManager {
    * Handles text improvement requests from ping icons
    * @param event - Custom event containing text and input element
    */
-  private handleTextImprovementRequest(event: CustomEvent): void {
+  private handleTextImprovementRequest(event: CustomEvent): void {    
     const { text, inputElement } = event.detail;
     this.currentInputText = text;
     this.currentInputElement = inputElement;
     this.showPanel(inputElement);
     this.improveText(text);
   }
+
+  private handleTextImprovementRequestForEditor(event: CustomEvent): void {    
+    const { text, inputElement } = event.detail;
+    this.currentInputText = text;
+    this.currentInputElement = inputElement;
+    this.showPanel(inputElement);
+    this.improveTextAndHTML(text, inputElement);
+  }
+
+  private async improveTextAndHTML(text: string, inputElement: HTMLElement ): Promise<void> {
+    if (this.isProcessing || !this.panel) return;
+      this.isProcessing = true;
+    
+    this.showLoadingState();
+    if (inputElement && inputElement.classList.contains('ProseMirror')) {
+        this.proseMirrorEditor = inputElement;
+        const elementHtml = inputElement.outerHTML; // ✅ whole element as string
+
+        const response = await chrome.runtime.sendMessage({
+          action: 'makeEditedElement',
+          text,
+          element: elementHtml
+        });
+
+        if (response.isSuccess) {
+          const response_data = JSON.parse(response.result);
+          this.changingProseMirror = response_data.updated_element;          
+          this.showSuggestion(response_data.improved_text, response_data.purpose);
+        // this.showSuggestion(response.result, response.purpose);
+      } else {
+        this.showError(response.error);
+      }
+    }
+  }
+
+
 
   /**
    * Shows the improvement panel positioned relative to an input element
@@ -654,10 +710,13 @@ class ImprovementPanelManager {
    * @param text - Text to improve
    */
   private async improveText(text: string): Promise<void> {
+    this.proseMirrorEditor = null;
     if (this.isProcessing || !this.panel) return;
-
+    
     this.isProcessing = true;
     this.showLoadingState();
+
+    
 
     try {
       const response = await chrome.runtime.sendMessage({
@@ -783,9 +842,24 @@ class ImprovementPanelManager {
   /**
    * Replaces the selected text in the input element with the suggestion
    */
-  private replaceSelection(): void {
+  private async replaceSelection(): Promise<void> {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
     const text = suggestionText?.textContent || '';
+
+    console.log(this.proseMirrorEditor);
+    if(this.proseMirrorEditor && this.changingProseMirror){
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(this.changingProseMirror, "text/html");
+      const element = doc.body.firstChild as HTMLElement | null;
+
+      if (element && this.proseMirrorEditor.parentNode) {
+        this.proseMirrorEditor.parentNode.replaceChild(element, this.proseMirrorEditor);
+        // Update the reference to point to the new element
+        this.proseMirrorEditor = element;
+        this.proseMirrorEditor.focus();
+        this.hidePanel();
+      }
+    }
 
     if (text && this.currentInputElement) {
       // Replace only the selected text in the input element

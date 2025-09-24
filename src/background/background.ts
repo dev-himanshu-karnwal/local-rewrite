@@ -42,10 +42,11 @@ interface OllamaRequest {
  * Message structure for extension internal communication
  */
 interface ExtensionMessage {
-  action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings';
+  action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings' | 'makeEditedElement';
   text?: string;
   isShort?: boolean;
   settings?: UserSettings;
+  element?: string;
 }
 
 /**
@@ -212,6 +213,122 @@ class OllamaService {
       throw new Error(errorMessage);
     }
   }
+
+
+  async replaceTextWithFormating(
+    text: string,
+    element: string
+  ): Promise<{ result: string; purpose: string; isSuccess: boolean; error: string }> {
+    const models = await this.getModelConfig();
+    const selectedModel = models.quality; // or choose fast vs quality if you want
+
+    // Build a special prompt for Ollama
+    const prompt = `
+You are an advanced grammar, style, and clarity assistant. Your goal is to refine written text so that it is clear, concise, grammatically correct, and professional—while strictly preserving its original meaning and all formatting.
+
+Guidelines:
+1. Correct grammar, punctuation, and spelling errors.
+2. Improve readability and flow by simplifying awkward phrasing.
+3. Maintain all formatting and styling in the input HTML element:
+   - Bold, italic, underline, span colors, background colors, and any other styles must remain exactly as in the input.
+   - Do not remove, change, or overwrite any styles.
+4. Preserve line breaks where they naturally aid readability.
+5. If the text is already clear and professional, keep it unchanged.
+6. Your output must be a **single, valid, fully parseable JSON object** that can be safely used with JSON.parse() in JavaScript.
+   - All keys must be double-quoted.
+   - All string values must be double-quoted.
+   - Any double quotes inside strings (e.g., in HTML attributes) must be properly escaped using backslashes (\").
+   - Do not use triple quotes or single quotes for strings.
+   - Do not include any explanations or extra text outside the JSON.
+
+Error Handling:
+- If the input is empty, gibberish, or cannot be improved, set "isSuccess": false and provide a human-friendly "error" field.
+
+Required Output Format:
+{
+  "improved_text": "<corrected plain text here, no HTML>",
+  "purpose": "<one-line summary of key improvements or 'No change required'>",
+  "isSuccess": true,
+  "updated_element": "<HTML element with corrected text inserted, preserving all styles exactly, with properly escaped quotes for JSON>",
+  "error": "<human-friendly error message, omit if successful>"
+}
+
+Example of "updated_element": "<div class=\"ProseMirror ua-chrome\" aria-label=\"Main content area, start typing to enter text.\" aria-multiline=\"true\" role=\"textbox\" id=\"ak-editor-textarea\" data-editor-id=\"2088540f-9253-4360-8a9d-53935e160e73\" data-vc-ignore-if-no-layout-shift=\"true\" contenteditable=\"true\" data-gramm=\"false\" translate=\"no\"><p data-prosemirror-content-type=\"node\" data-prosemirror-node-name=\"paragraph\" data-prosemirror-node-block=\"true\" class=\"ak-editor-selected-node\">Hello world</p></div>",
+
+Important Notes:
+- The "improved_text" must fit exactly into the "updated_element".
+- The "updated_element" must preserve **every styling detail**, including colors, bold, italic, underline, background color, spans, etc.
+- Do not change any text styling in the HTML—only correct the text content.
+- Only output the JSON object. The JSON must be valid and parseable with JSON.parse().
+
+Example:
+
+Input text: "Hellow this si"  
+Input element: "<div class='ProseMirror ua-chrome' ...>Hellow this si</div>"  
+
+Output:
+{
+  "improved_text": "Hello this is",
+  "purpose": "Corrected grammar, punctuation, and formatting errors for clarity.",
+  "isSuccess": true,
+  "updated_element": "<div class='ProseMirror ua-chrome' ...>Hello this is</div>"
+}
+
+Now, process the following:
+
+Original text: """${text}"""  
+HTML element: """${element}"""
+`;
+
+
+
+
+    const request: OllamaRequest = {
+      model: selectedModel.name,
+      prompt,
+      stream: false,
+      options: {
+        temperature: selectedModel.temperature,
+        top_p: selectedModel.top_p
+      }
+    };
+
+    try {
+
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify(request)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Ollama API error response:", errorText);
+        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+      }
+
+      const data: OllamaResponse = await response.json();
+      console.log("Ollama response data:", data);
+
+      const responseText = data.response.trim();      
+
+      // Here you might want to parse/validate, but let's assume Ollama returns pure HTML
+      return {
+        result: responseText,
+        purpose: "replace_with_formatting",
+        isSuccess: true,
+        error: ""
+      };
+    } catch (error) {
+      console.error("Error in replaceTextWithFormating:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { result: "", purpose: "", isSuccess: false, error: errorMessage };
+    }
+  }
+
 
   /**
    * Creates a structured prompt for text improvement
@@ -565,6 +682,9 @@ chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendRes
     case 'improveText':
       handleImproveText(request, sendResponse);
       break;
+    case 'makeEditedElement': // ✅ new case
+      handleMakeEditedElement(request, sendResponse);
+      break;
     case 'checkOllama':
       handleCheckOllama(sendResponse);
       break;
@@ -596,7 +716,7 @@ chrome.runtime.onMessage.addListener((request: ExtensionMessage, sender, sendRes
  * @param sendResponse - Callback function to send response
  */
 async function handleImproveText(request: ExtensionMessage, sendResponse: (response: ExtensionResponse) => void): Promise<void> {
-  try {
+  try {    
     const result = await ollamaService.improveText(request.text!, request.isShort);
     console.log('Text improvement successful');
     sendResponse({ result: result.result, purpose: result.purpose, isSuccess: result.isSuccess, error: result.error });
@@ -606,6 +726,35 @@ async function handleImproveText(request: ExtensionMessage, sendResponse: (respo
     sendResponse({ error: errorMessage, isSuccess: false });
   }
 }
+
+
+
+
+async function handleMakeEditedElement(request: ExtensionMessage, sendResponse: (response: ExtensionResponse) => void): Promise<void> {
+  try {
+    const { text, element } = request;
+    if (!text || !element) {
+      sendResponse({ error: 'Missing text or element', isSuccess: false });
+      return;
+    }
+
+    const result = await ollamaService.replaceTextWithFormating(text, element);
+    
+    console.log('Edited element generated successfully',result);
+
+    sendResponse({
+      result: result.result,
+      purpose: result.purpose,
+      isSuccess: result.isSuccess,
+      error: result.error
+    });
+  } catch (error) {
+    console.error('Edited element generation failed:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    sendResponse({ error: errorMessage, isSuccess: false });
+  }
+}
+
 
 /**
  * Handles Ollama status check requests
