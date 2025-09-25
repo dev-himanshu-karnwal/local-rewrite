@@ -223,64 +223,67 @@ class OllamaService {
     const selectedModel = models.quality; // or choose fast vs quality if you want
 
     // Build a special prompt for Ollama
-    const prompt = `
-You are an advanced grammar, style, and clarity assistant. Your goal is to refine written text so that it is clear, concise, grammatically correct, and professional—while strictly preserving its original meaning and all formatting.
-
-Guidelines:
-1. Correct grammar, punctuation, and spelling errors.
-2. Improve readability and flow by simplifying awkward phrasing.
-3. Maintain all formatting and styling in the input HTML element:
-   - Bold, italic, underline, span colors, background colors, and any other styles must remain exactly as in the input.
-   - Do not remove, change, or overwrite any styles.
-4. Preserve line breaks where they naturally aid readability.
-5. If the text is already clear and professional, keep it unchanged.
-6. Your output must be a **single, valid, fully parseable JSON object** that can be safely used with JSON.parse() in JavaScript.
-   - All keys must be double-quoted.
-   - All string values must be double-quoted.
-   - Any double quotes inside strings (e.g., in HTML attributes) must be properly escaped using backslashes (\").
-   - Do not use triple quotes or single quotes for strings.
-   - Do not include any explanations or extra text outside the JSON.
-
-Error Handling:
-- If the input is empty, gibberish, or cannot be improved, set "isSuccess": false and provide a human-friendly "error" field.
-
-Required Output Format:
-{
-  "improved_text": "<corrected plain text here, no HTML>",
-  "purpose": "<one-line summary of key improvements or 'No change required'>",
-  "isSuccess": true,
-  "updated_element": "<HTML element with corrected text inserted, preserving all styles exactly, with properly escaped quotes for JSON>",
-  "error": "<human-friendly error message, omit if successful>"
-}
-
-Example of "updated_element": "<div class=\"ProseMirror ua-chrome\" aria-label=\"Main content area, start typing to enter text.\" aria-multiline=\"true\" role=\"textbox\" id=\"ak-editor-textarea\" data-editor-id=\"2088540f-9253-4360-8a9d-53935e160e73\" data-vc-ignore-if-no-layout-shift=\"true\" contenteditable=\"true\" data-gramm=\"false\" translate=\"no\"><p data-prosemirror-content-type=\"node\" data-prosemirror-node-name=\"paragraph\" data-prosemirror-node-block=\"true\" class=\"ak-editor-selected-node\">Hello world</p></div>",
-
-Important Notes:
-- The "improved_text" must fit exactly into the "updated_element".
-- The "updated_element" must preserve **every styling detail**, including colors, bold, italic, underline, background color, spans, etc.
-- Do not change any text styling in the HTML—only correct the text content.
-- Only output the JSON object. The JSON must be valid and parseable with JSON.parse().
-
-Example:
-
-Input text: "Hellow this si"  
-Input element: "<div class='ProseMirror ua-chrome' ...>Hellow this si</div>"  
-
-Output:
-{
-  "improved_text": "Hello this is",
-  "purpose": "Corrected grammar, punctuation, and formatting errors for clarity.",
-  "isSuccess": true,
-  "updated_element": "<div class='ProseMirror ua-chrome' ...>Hello this is</div>"
-}
-
-Now, process the following:
-
-Original text: """${text}"""  
-HTML element: """${element}"""
-`;
-
-
+   const prompt = `
+      You are an advanced grammar, style, and clarity assistant. Your goal is to refine written text so that it is clear, concise, grammatically correct, and professional—while strictly preserving its original meaning and formatting.
+        
+      Guidelines:
+      1. Correct grammar, punctuation, and spelling errors.
+      2. Improve readability and flow by simplifying awkward phrasing.
+        
+      **Important:** Only change the selected text inside class="ProseMirror ..." but you must return Markdown Format for ALL child elements under the parent <div class="ProseMirror ...">. Also preserve positioning: if the selected text has paragraphs above or below, return the full structure with all siblings.
+        
+      3. Convert ONLY the INNER CONTENT of the provided <div class="ProseMirror ..."> into Markdown/HTML hybrid:
+         - DO NOT include the outer <div class="ProseMirror ..."> wrapper in your output.
+         - Use Markdown for block structure (headings, lists, blockquotes, paragraphs).
+         - Preserve inline formatting with the SAME HTML tags from the input:
+           * <strong> must remain <strong>.
+           * <em> must remain <em>.
+           * <u> must remain <u>.
+           * <span style="..."> must remain unchanged with its styles.
+         - Preserve <p>, <br>, <ul>, <li>, <blockquote>, <code>, etc. in their original HTML form.
+         - Nested formatting must remain intact.
+        
+      4. Ensure that the **selected text’s grammar is corrected**, and after applying all corrections, return the **Markdown format of ALL child elements under <div class="ProseMirror ...">**.
+        
+      5. If the text is already clear and professional, keep it unchanged.
+        
+      6. Your output must be a **single, valid, fully parseable JSON object only**. 
+         - Do not include any explanations, introductions, or extra text outside the JSON.
+         - All keys must be double-quoted.
+         - All string values must be double-quoted.
+         - Any double quotes inside strings must be escaped with backslashes (\").
+         - The JSON must be directly usable with JSON.parse() in JavaScript.
+        
+      7. Selected text should be returned with all child elements under <div class="ProseMirror ...">.
+        
+      Error Handling:
+      - If the input is empty, gibberish, or cannot be improved, set "isSuccess": false and provide a human-friendly "error" field.
+        
+      Required Output Format:
+      {
+        "improved_text": "corrected plain text here, no HTML",
+        "purpose": "one-line summary of key improvements or 'No change required'",
+        "isSuccess": true,
+        "markdown_content": "Markdown/HTML hybrid version of the inner content only, no outer div",
+        "error": "human-friendly error message, omit if successful"
+      }
+        
+      Example:
+      Input text: "Hellow worlds"
+      Input element: "<div class=\"ProseMirror ua-chrome\"><p><strong>Hellow</strong> worlds</p></div>"
+        
+      Output:
+      {
+        "improved_text": "Hello worlds",
+        "purpose": "Corrected spelling of 'Hellow' to 'Hello'.",
+        "isSuccess": true,
+        "markdown_content": "<p><strong>Hello</strong> worlds</p>"
+      }
+        
+      Now, process ONLY the following and return JSON (no extra text):
+      Original text value: "${text}"
+      HTML element: "${element}"
+      `;
 
 
     const request: OllamaRequest = {
@@ -311,9 +314,10 @@ HTML element: """${element}"""
       }
 
       const data: OllamaResponse = await response.json();
-      console.log("Ollama response data:", data);
+      console.log("Ollama response data:------->", data);
 
       const responseText = data.response.trim();      
+
 
       // Here you might want to parse/validate, but let's assume Ollama returns pure HTML
       return {

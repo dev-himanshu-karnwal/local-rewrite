@@ -572,8 +572,10 @@ class ImprovementPanelManager {
         });
 
         if (response.isSuccess) {
+          console.log("response.result-->",response.result);
+          
           const response_data = JSON.parse(response.result);
-          this.changingProseMirror = response_data.updated_element;          
+          this.changingProseMirror = response_data.markdown_content;          
           this.showSuggestion(response_data.improved_text, response_data.purpose);
         // this.showSuggestion(response.result, response.purpose);
       } else {
@@ -846,22 +848,62 @@ class ImprovementPanelManager {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
     const text = suggestionText?.textContent || '';
 
-    console.log(this.proseMirrorEditor);
-    if(this.proseMirrorEditor && this.changingProseMirror){
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(this.changingProseMirror, "text/html");
-      const element = doc.body.firstChild as HTMLElement | null;
+    console.log("this.proseMirrorEditor",this.proseMirrorEditor);
+    // if(this.proseMirrorEditor && this.changingProseMirror){
+    //   const parser = new DOMParser();
+    //   const doc = parser.parseFromString(this.changingProseMirror, "text/html");
+    //   const element = doc.body.firstChild as HTMLElement | null;
+    //   if (element && this.proseMirrorEditor.parentNode) {
+    //     this.proseMirrorEditor.parentNode.replaceChild(element, this.proseMirrorEditor);
+    //     // Update the reference to point to the new element
+    //     this.proseMirrorEditor = element;
+    //     this.proseMirrorEditor.focus();
+    //     this.hidePanel();
+    //   }
+    // }
+     
 
-      if (element && this.proseMirrorEditor.parentNode) {
-        this.proseMirrorEditor.parentNode.replaceChild(element, this.proseMirrorEditor);
-        // Update the reference to point to the new element
-        this.proseMirrorEditor = element;
-        this.proseMirrorEditor.focus();
-        this.hidePanel();
+
+    if (this.proseMirrorEditor && this.changingProseMirror) {
+      const parent = this.proseMirrorEditor;
+
+      // Ensure we have a string (await if Promise)
+      const markdownContent: string = await Promise.resolve(this.changingProseMirror);
+
+      // Basic Markdown → HTML converter
+      const htmlString = markdownContent
+        .replace(/^###### (.*$)/gim, '<h6>$1</h6>')
+        .replace(/^##### (.*$)/gim, '<h5>$1</h5>')
+        .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')   // bold
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')               // italics
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // links
+        .replace(/^\s*\-\s+(.*)$/gim, '<li>$1</li>')       // unordered list items
+        .replace(/\n/g, '<br>');                            // line breaks
+
+      // Parse HTML into DOM nodes
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlString, "text/html");
+      const newNodes = Array.from(doc.body.childNodes);
+
+      // Replace all children of the editor
+      while (parent.firstChild) {
+        parent.removeChild(parent.firstChild);
       }
+      newNodes.forEach(node => parent.appendChild(node));
+
+      // Focus first child if exists
+      const firstChild = parent.firstElementChild as HTMLElement | null;
+      if (firstChild) firstChild.focus();
+
+      // Optionally hide the panel
+      this.hidePanel();
     }
 
-    if (text && this.currentInputElement) {
+    else if (text && this.currentInputElement) {
       // Replace only the selected text in the input element
       const start = this.currentInputElement.selectionStart || 0;
       const end = this.currentInputElement.selectionEnd || 0;
