@@ -330,8 +330,6 @@ class PingIconManager {
 
     const updateVisibility = () => {
       const selection = window.getSelection();
-      console.log("Selection-->", selection);
-
       const selectedText = selection?.toString().trim() ?? "";
       console.log("selectedText", selectedText);
 
@@ -394,6 +392,7 @@ class PingIconManager {
   }
 
   private handleEditorPingIconClick(inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLElement): void {  
+    
     let selectedText = "";
     if (inputElement instanceof HTMLInputElement || inputElement instanceof HTMLTextAreaElement) {
       // For standard inputs
@@ -408,8 +407,7 @@ class PingIconManager {
 
     if (selectedText.length < this.minSelectionLength) {
       return;
-    }
-
+    }    
     const event = new CustomEvent('lre__textImprovementRequestForEditor', {
       detail: {
         text: selectedText,
@@ -418,9 +416,6 @@ class PingIconManager {
     });
     document.dispatchEvent(event);
   }
-
-
-  
 
   /**
    * Gets the currently selected text from an input element
@@ -434,16 +429,16 @@ class PingIconManager {
   }
 
   private getSelectedTextFromProseMirror(editor: HTMLElement): string {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return "";
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return "";
 
-  const range = selection.getRangeAt(0);
+    const range = selection.getRangeAt(0);
 
-  // Make sure the selection is inside the editor
-  if (!editor.contains(range.commonAncestorContainer)) return "";
+    // Make sure the selection is inside the editor
+    if (!editor.contains(range.commonAncestorContainer)) return "";
 
-  return selection.toString();
-}
+    return selection.toString();
+  }
 
   /**
    * Handles click events on ping icons
@@ -548,41 +543,50 @@ class ImprovementPanelManager {
     this.improveText(text);
   }
 
-  private handleTextImprovementRequestForEditor(event: CustomEvent): void {    
+  private handleTextImprovementRequestForEditor(event: CustomEvent): void {        
     const { text, inputElement } = event.detail;
     this.currentInputText = text;
     this.currentInputElement = inputElement;
-    this.showPanel(inputElement);
+    this.showPanel(inputElement);    
     this.improveTextAndHTML(text, inputElement);
   }
 
-  private async improveTextAndHTML(text: string, inputElement: HTMLElement ): Promise<void> {
+  private async improveTextAndHTML(text: string, inputElement: HTMLElement): Promise<void> {
+
     if (this.isProcessing || !this.panel) return;
-      this.isProcessing = true;
-    
-    this.showLoadingState();
-    if (inputElement && inputElement.classList.contains('ProseMirror')) {
+
+    this.isProcessing = true;
+
+    try {
+      this.showLoadingState();
+
+      if (inputElement && inputElement.classList.contains('ProseMirror')) {
         this.proseMirrorEditor = inputElement;
         const elementHtml = inputElement.outerHTML; // ✅ whole element as string
-
         const response = await chrome.runtime.sendMessage({
           action: 'makeEditedElement',
           text,
-          element: elementHtml
+          element: elementHtml,
         });
 
         if (response.isSuccess) {
-          console.log("response.result-->",response.result);
-          
+          console.log("response.result-->", response.result);
+
           const response_data = JSON.parse(response.result);
-          this.changingProseMirror = response_data.markdown_content;          
+          this.changingProseMirror = response_data.markdown_content;
           this.showSuggestion(response_data.improved_text, response_data.purpose);
-        // this.showSuggestion(response.result, response.purpose);
-      } else {
-        this.showError(response.error);
+        } else {
+          this.showError(response.error);
+        }
       }
+    } catch (error) {
+      console.error("Error in improveTextAndHTML:", error);
+      this.showError("An unexpected error occurred while improving text.");
+    } finally {
+      this.isProcessing = false;
     }
   }
+
 
 
 
@@ -624,6 +628,7 @@ class ImprovementPanelManager {
       this.panel.hide();
       this.panel = null;
     }
+    this.isProcessing = false;
   }
 
   /**
@@ -848,7 +853,6 @@ class ImprovementPanelManager {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
     const text = suggestionText?.textContent || '';
 
-    console.log("this.proseMirrorEditor",this.proseMirrorEditor);
     // if(this.proseMirrorEditor && this.changingProseMirror){
     //   const parser = new DOMParser();
     //   const doc = parser.parseFromString(this.changingProseMirror, "text/html");
@@ -861,9 +865,7 @@ class ImprovementPanelManager {
     //     this.hidePanel();
     //   }
     // }
-     
-
-
+  
     if (this.proseMirrorEditor && this.changingProseMirror) {
       const parent = this.proseMirrorEditor;
 
@@ -933,6 +935,8 @@ class ImprovementPanelManager {
       // Hide the panel
       this.hidePanel();
     }
+
+    this.isProcessing = false;
   }
 
   /**
