@@ -196,15 +196,15 @@ class PingIconManager {
    * @param inputElement - Input element to create ping icon for
    * @returns PingIcon - Created ping icon object
    */
-  private createPingIcon(inputElement: HTMLInputElement | HTMLTextAreaElement): PingIcon {    
+  private createPingIcon(inputElement: HTMLInputElement | HTMLTextAreaElement): PingIcon {
     const pingIcon = document.createElement('div');
     pingIcon.className = 'lre__text-improvement-ping';
     pingIcon.innerHTML = '✨';
     pingIcon.title = 'Improve selected text with AI';
 
-    // Style the icon to appear inside input
+    // Style the icon
     Object.assign(pingIcon.style, {
-      position: 'fixed', // fixed relative to viewport
+      position: 'absolute', // follow input dynamically
       width: '20px',
       height: '20px',
       lineHeight: '20px',
@@ -212,7 +212,7 @@ class PingIconManager {
       cursor: 'pointer',
       pointerEvents: 'auto',
       zIndex: '9999',
-      display: 'none',     
+      display: 'none',
     });
 
     document.body.appendChild(pingIcon);
@@ -226,7 +226,10 @@ class PingIconManager {
 
     // Show/hide icon based on selection
     const updateVisibility = () => {
-      const selectionLength = (inputElement.selectionEnd || 0) - (inputElement.selectionStart || 0);
+      let selectionLength = 0;
+      if ('selectionStart' in inputElement && inputElement.selectionStart !== null) {
+        selectionLength = (inputElement.selectionEnd || 0) - (inputElement.selectionStart || 0);
+      }
       if (selectionLength >= this.minSelectionLength) {
         pingIcon.style.display = 'block';
         updatePosition();
@@ -236,10 +239,9 @@ class PingIconManager {
     };
 
     // Event listeners for input selection
-    inputElement.addEventListener('mouseup', updateVisibility);
-    inputElement.addEventListener('keyup', updateVisibility);
-    inputElement.addEventListener('select', updateVisibility);
-    inputElement.addEventListener('focus', updateVisibility);
+    const selectionEvents = ['mouseup', 'keyup', 'select', 'focus'];
+    selectionEvents.forEach(event => inputElement.addEventListener(event, updateVisibility));
+
     inputElement.addEventListener('blur', () => {
       setTimeout(() => {
         if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
@@ -248,19 +250,27 @@ class PingIconManager {
       }, 100);
     });
 
-    // Recalculate position on scroll or resize (works for modals too)
-    window.addEventListener('scroll', () => {
+    // Track scrollable parents to move icon
+    const scrollableParents: HTMLElement[] = [];
+    let parent: HTMLElement | null = inputElement.parentElement;
+    while (parent) {
+      const overflowY = getComputedStyle(parent).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') scrollableParents.push(parent);
+      parent = parent.parentElement;
+    }
+
+    const repositionHandler = () => {
       if (pingIcon.style.display === 'block') updatePosition();
-    });
-    window.addEventListener('resize', () => {
-      if (pingIcon.style.display === 'block') updatePosition();
-    });
+    };
+
+    window.addEventListener('resize', repositionHandler);
+    window.addEventListener('scroll', repositionHandler, true); // capture scroll from any container
+    scrollableParents.forEach(p => p.addEventListener('scroll', repositionHandler));
 
     // Click handler
     pingIcon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
       this.handlePingClick(inputElement);
     });
 
@@ -269,7 +279,14 @@ class PingIconManager {
       inputElement,
       show: () => { pingIcon.style.display = 'block'; updatePosition(); },
       hide: () => { pingIcon.style.display = 'none'; },
-      destroy: () => { pingIcon.remove(); }
+      destroy: () => {
+        pingIcon.remove();
+        selectionEvents.forEach(event => inputElement.removeEventListener(event, updateVisibility));
+        inputElement.removeEventListener('blur', updateVisibility);
+        window.removeEventListener('resize', repositionHandler);
+        window.removeEventListener('scroll', repositionHandler, true);
+        scrollableParents.forEach(p => p.removeEventListener('scroll', repositionHandler));
+      }
     };
   }
 
@@ -594,31 +611,70 @@ class ImprovementPanelManager {
    * Shows the improvement panel positioned relative to an input element
    * @param inputElement - Input element to position panel relative to
    */
-  private showPanel(inputElement: HTMLInputElement | HTMLTextAreaElement): void {
-    this.hidePanel(); // Remove existing panel
+  private showPanel(inputElement: HTMLElement): void {
+    this.hidePanel();
+    if (!inputElement) return;
 
+    const panel = this.createPanel();
+    this.panel = panel;
+
+    // Function to update panel position
+    const updatePosition = () => {
+      const rect = inputElement.getBoundingClientRect();
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+      const screenHeight = window.innerHeight;
+      const showBelow = rect.top / screenHeight < 0.33;
+
+      panel.element.style.left = `${rect.left + scrollX}px`;
+      panel.element.style.top = showBelow
+        ? `${rect.bottom + scrollY + 8}px`
+        : `${rect.top + scrollY - panel.element.offsetHeight - 8}px`;
+    };
+
+    // Initial positioning
+    updatePosition();
     const rect = inputElement.getBoundingClientRect();
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
-    
-    // Check if input is in top 1/3 of screen to determine panel position
+
     const screenHeight = window.innerHeight;
-    const inputTopRatio = rect.top / screenHeight;
-    const showBelow = inputTopRatio < 0.33;
+    const showBelow = rect.top / screenHeight < 0.33;
 
-    // Get effective z-index from input hierarchy
-    const effectiveZIndex = getEffectiveZIndex(inputElement);
-
-    this.panel = this.createPanel();
-    
-    // Set z-index for the panel (slightly higher than the input's hierarchy)
-    this.panel.element.style.zIndex = `${effectiveZIndex + 5}`;
-
-    this.panel.show(this.currentInputText, {
+    panel.show(this.currentInputText ?? '', {
       x: rect.left + scrollX,
-      y: showBelow ? rect.bottom + scrollY + 8 : rect.top + scrollY - 8
+      y: showBelow
+        ? rect.bottom + scrollY + 8
+        : rect.top + scrollY - panel.element.offsetHeight - 8
     });
+
+    // Track scrollable ancestors for dynamic following
+    const scrollableParents: HTMLElement[] = [];
+    let parent: HTMLElement | null = inputElement.parentElement;
+    while (parent) {
+      const overflowY = getComputedStyle(parent).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') scrollableParents.push(parent);
+      parent = parent.parentElement;
+    }
+
+    // Event listeners
+    const scrollHandler = () => updatePosition();
+    const resizeHandler = () => updatePosition();
+
+    window.addEventListener('resize', resizeHandler);
+    scrollableParents.forEach(p => p.addEventListener('scroll', scrollHandler));
+
+    // Store cleanup function
+    (panel as any)._cleanup = () => {
+      window.removeEventListener('resize', resizeHandler);
+      scrollableParents.forEach(p => p.removeEventListener('scroll', scrollHandler));
+    };
+
+    // Set z-index
+    const effectiveZIndex = getEffectiveZIndex(inputElement);
+    panel.element.style.zIndex = `${effectiveZIndex + 5}`;
   }
+
 
   /**
    * Hides the improvement panel
@@ -632,71 +688,56 @@ class ImprovementPanelManager {
   }
 
   /**
-   * Creates the text improvement panel with all UI elements
-   * @returns TextImprovementPanel - Created panel object
-   */
+  * Creates the text improvement panel with all UI elements
+  * @returns TextImprovementPanel - Created panel object
+  */
   private createPanel(): TextImprovementPanel {
     const panel = document.createElement('div');
     panel.className = 'lre__text-improvement-panel';
+    panel.style.position = 'absolute';
+    panel.style.display = 'none';
+
     panel.innerHTML = `
-      <div class="lre__panel-header">
-        <div class="lre__header-left">
-          <span class="lre__panel-title">Local Text Improver</span>
-        </div>
-        <button class="lre__close-btn" aria-label="Close">×</button>
+    <div class="lre__panel-header">
+      <div class="lre__header-left">
+        <span class="lre__panel-title">Local Text Improver</span>
       </div>
-      <div class="lre__panel-content">
-        <div class="lre__suggestion-purpose" style="display: none;">Analyzing text improvements...</div>
-        <div class="lre__loading-state">
-          <div class="lre__spinner"></div>
-          <span>Improving text...</span>
+      <button class="lre__close-btn" aria-label="Close">×</button>
+    </div>
+    <div class="lre__panel-content">
+      <div class="lre__suggestion-purpose" style="display: none;">Analyzing text improvements...</div>
+      <div class="lre__loading-state">
+        <div class="lre__spinner"></div>
+        <span>Improving text...</span>
+      </div>
+      <div class="lre__suggestion-content" style="display: none;">
+        <div class="lre__suggestion-text-container">
+          <div class="lre__suggestion-indicator"></div>
+          <div class="lre__suggestion-text"></div>
         </div>
-        <div class="lre__suggestion-content" style="display: none;">
-          <div class="lre__suggestion-text-container">
-            <div class="lre__suggestion-indicator"></div>
-            <div class="lre__suggestion-text"></div>
-          </div>
-          <div class="lre__suggestion-actions">
-            <button class="lre__action-btn lre__replace-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 6L9 17l-5-5"></path>
-              </svg>
-              Replace
-            </button>
-            <button class="lre__action-btn lre__copy-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-              </svg>
-              Copy
-            </button>
-          </div>
-        </div>
-        <div class="lre__error-state" style="display: none;">
-          <div class="lre__error-message"></div>
-          <button class="lre__retry-btn">Retry</button>
+        <div class="lre__suggestion-actions">
+          <button class="lre__action-btn lre__replace-btn">Replace</button>
+          <button class="lre__action-btn lre__copy-btn">Copy</button>
         </div>
       </div>
-    `;
+      <div class="lre__error-state" style="display: none;">
+        <div class="lre__error-message"></div>
+        <button class="lre__retry-btn">Retry</button>
+      </div>
+    </div>
+  `;
 
     document.body.appendChild(panel);
 
-    // Add event listeners for panel controls
-    const closeBtn = panel.querySelector('.lre__close-btn') as HTMLButtonElement;
-    const replaceBtn = panel.querySelector('.lre__replace-btn') as HTMLButtonElement;
-    const copyBtn = panel.querySelector('.lre__copy-btn') as HTMLButtonElement;
-    const retryBtn = panel.querySelector('.lre__retry-btn') as HTMLButtonElement;
-
-    closeBtn.addEventListener('click', () => this.hidePanel());
-    replaceBtn.addEventListener('click', () => this.replaceSelection());
-    copyBtn.addEventListener('click', () => this.copySuggestion());
-    retryBtn.addEventListener('click', () => this.improveText(this.currentInputText));
+    // Event listeners
+    panel.querySelector('.lre__close-btn')?.addEventListener('click', () => this.hidePanel());
+    panel.querySelector('.lre__replace-btn')?.addEventListener('click', () => this.replaceSelection());
+    panel.querySelector('.lre__copy-btn')?.addEventListener('click', () => this.copySuggestion());
+    panel.querySelector('.lre__retry-btn')?.addEventListener('click', () => this.improveText(this.currentInputText));
 
     return {
       element: panel,
-      show: (text: string, position: { x: number; y: number }) => {
-        panel.style.left = `${position.x}px`;
-        panel.style.top = `${position.y}px`;
+      show: () => {
         panel.style.display = 'block';
         panel.classList.add('lre__visible');
       },
@@ -711,6 +752,7 @@ class ImprovementPanelManager {
       }
     };
   }
+
 
   /**
    * Sends text improvement request to background script
