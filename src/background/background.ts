@@ -221,69 +221,92 @@ class OllamaService {
   ): Promise<{ result: string; purpose: string; isSuccess: boolean; error: string }> {
     const models = await this.getModelConfig();
     const selectedModel = models.quality; // or choose fast vs quality if you want
-
+    
     // Build a special prompt for Ollama
    const prompt = `
-      You are an advanced grammar, style, and clarity assistant. Your goal is to refine written text so that it is clear, concise, grammatically correct, and professional—while strictly preserving its original meaning and formatting.
-        
-      Guidelines:
-      1. Correct grammar, punctuation, and spelling errors.
-      2. Improve readability and flow by simplifying awkward phrasing.
-        
-      **Important:** Only change the selected text inside class="ProseMirror ..." but you must return Markdown Format for ALL child elements under the parent <div class="ProseMirror ...">. Also preserve positioning: if the selected text has paragraphs above or below, return the full structure with all siblings.
-        
-      3. Convert ONLY the INNER CONTENT of the provided <div class="ProseMirror ..."> into Markdown/HTML hybrid:
-         - DO NOT include the outer <div class="ProseMirror ..."> wrapper in your output.
-         - Use Markdown for block structure (headings, lists, blockquotes, paragraphs).
-         - Preserve inline formatting with the SAME HTML tags from the input:
-           * <strong> must remain <strong>.
-           * <em> must remain <em>.
-           * <u> must remain <u>.
-           * <span style="..."> must remain unchanged with its styles.
-         - Preserve <p>, <br>, <ul>, <li>, <blockquote>, <code>, etc. in their original HTML form.
-         - Nested formatting must remain intact.
-        
-      4. Ensure that the **selected text’s grammar is corrected**, and after applying all corrections, return the **Markdown format of ALL child elements under <div class="ProseMirror ...">**.
-        
-      5. If the text is already clear and professional, keep it unchanged.
-        
-      6. Your output must be a **single, valid, fully parseable JSON object only**. 
-         - Do not include any explanations, introductions, or extra text outside the JSON.
-         - All keys must be double-quoted.
-         - All string values must be double-quoted.
-         - Any double quotes inside strings must be escaped with backslashes (\").
-         - The JSON must be directly usable with JSON.parse() in JavaScript.
-        
-      7. Selected text should be returned with all child elements under <div class="ProseMirror ...">.
-        
-      Error Handling:
-      - If the input is empty, gibberish, or cannot be improved, set "isSuccess": false and provide a human-friendly "error" field.
-        
-      Required Output Format:
-      {
-        "improved_text": "corrected plain text here, no HTML",
-        "purpose": "one-line summary of key improvements or 'No change required'",
-        "isSuccess": true,
-        "markdown_content": "Markdown/HTML hybrid version of the inner content only, no outer div",
-        "error": "human-friendly error message, omit if successful"
-      }
-        
-      Example:
-      Input text: "Hellow worlds"
-      Input element: "<div class=\"ProseMirror ua-chrome\"><p><strong>Hellow</strong> worlds</p></div>"
-        
-      Output:
-      {
-        "improved_text": "Hello worlds",
-        "purpose": "Corrected spelling of 'Hellow' to 'Hello'.",
-        "isSuccess": true,
-        "markdown_content": "<p><strong>Hello</strong> worlds</p>"
-      }
-        
-      Now, process ONLY the following and return JSON (no extra text):
-      Original text value: "${text}"
-      HTML element: "${element}"
-      `;
+You are an advanced grammar, style, and clarity assistant. Your task is to refine written text so that it is clear, concise, grammatically correct, and professional—while strictly preserving its original meaning and formatting.
+
+Guidelines:
+
+1. Correct grammar, punctuation, and spelling errors.
+2. Improve readability and flow by simplifying awkward phrasing.
+3. Process ONLY the inner content of the provided <div class="ProseMirror ...">. Do NOT include the outer <div> wrapper in your output.
+4. Use Markdown for block structures (headings, lists, blockquotes, paragraphs) and preserve inline formatting exactly as in the input:
+   - <strong>, <em>, <u>, <span style="...">, <code>, etc., must remain unchanged.
+   - Do NOT convert inline HTML tags to Markdown.
+5. Preserve all child elements under the <div class="ProseMirror ...">, including paragraphs, line breaks, lists, blockquotes, and code blocks.
+6. Nested formatting must remain intact.
+7. If an ordered list (<ol>) is present, format it exactly as shown in Example 4 (numbers start correctly, list items cleanly formatted).
+8. If the text is already clear and professional, keep it unchanged.
+9. Handle empty or invalid input by returning "isSuccess": false and a human-friendly "error" message.
+10. Ensure the final output is a single, valid JSON object only, with:
+    - All keys double-quoted.
+    - All string values double-quoted.
+    - Any double quotes inside strings escaped with backslashes (\").
+    - JSON directly usable with JSON.parse() in JavaScript.
+    - No explanations, introductions, or extra text outside the JSON.
+11. Correct usage of comma(,), full-stop(.), question-mark(?) and all special characters.
+
+Required Output Format:
+
+{
+  "improved_text": "Corrected plain text without HTML",
+  "purpose": "One-line summary of key improvements, or 'No change required'",
+  "isSuccess": true,
+  "markdown_content": "Markdown/HTML hybrid version of the inner content only, no outer div",
+  "error": "Human-friendly error message if unsuccessful (omit if successful)"
+}
+
+Example:
+
+Input text: "Hellow worlds"  
+Input element: "<div class=\\"ProseMirror ua-chrome\\"><p><strong>Hellow</strong> worlds</p></div>"
+
+Output:
+{
+  "improved_text": "Hello worlds",
+  "purpose": "Corrected spelling of 'Hellow' to 'Hello'.",
+  "isSuccess": true,
+  "markdown_content": "<p><strong>Hello</strong> worlds</p>"
+}
+
+Example 4 (Ordered List):
+
+Input text: "Vipul is an develeper and deseigner, but also knows AI/ML. Amit workd in the backend, while vipul works in the frontend. So Anil works in both.
+
+Amit  
+
+anil
+
+Vipul
+
+Himanshu"
+
+Input element:
+<div class="ProseMirror">
+<p>Vipul is an develeper and deseigner, but also knows AI/ML. Amit workd in the backend, while vipul works in the frontend. So Anil works in both.</p>
+<ol start="1" class="ak-ol ak-editor-selected-node">
+<li><p>Amit</p></li>
+<li><p>anil</p></li>
+<li><p>Vipul</p></li>
+<li><p>Himanshu</p></li>
+</ol>
+<p><br class="ProseMirror-trailingBreak"></p>
+</div>
+
+Output:
+{
+  "improved_text": "Vipul is an developer and designer, but also knows AI/ML. Amit worked in the backend, while Vipul works in the frontend. So Anil works in both.\n\nAmit\n\nAnil\n\nVipul\n\nHimanshu",
+  "purpose": "Corrected spelling and grammar of words. Fixed list formatting.",
+  "isSuccess": true,
+  "markdown_content": "<p>Vipul is an developer and designer, but also knows AI/ML. Amit worked in the backend, while Vipul works in the frontend. So Anil works in both.</p><ol start=\\"1\\"><li>Amit</li><li>Anil</li><li>Vipul</li><li>Himanshu</li></ol>"
+}
+
+Now, process ONLY the following and return a JSON object (no extra text):
+Original text value: "${text}"
+HTML element: "${element}"
+`;
+
 
 
     const request: OllamaRequest = {
@@ -295,6 +318,8 @@ class OllamaService {
         top_p: selectedModel.top_p
       }
     };
+
+          console.log('Sending request to Ollama:', request);
 
     try {
 
@@ -345,15 +370,16 @@ class OllamaService {
       
       Guidelines:
         1. Correct grammar, punctuation, and spelling errors.
-        2. Improve readability, clarity, and flow by simplifying awkward or wordy phrasing.
-        3. Maintain the original meaning, facts, and tone. Do not add, remove, or reinterpret information.
-        4. Respect format:
+        2. Correct usage of comma(,), full-stop(.), question-mark(?) and all special characters.
+        3. Improve readability, clarity, and flow by simplifying awkward or wordy phrasing.
+        4. Maintain the original meaning, facts, and tone. Do not add, remove, or reinterpret information.
+        5. Respect format:
           - If input is a list (numbered, bulleted, or any structured list), return it in the same format.
           - Must add Comma after finishing the Key : value pair. Then start new Key: Value pair.
           - Preserve line breaks where they naturally aid readability. Do not insert unnecessary breaks.
           - You can add two or more new lines to the text to make it more readable and formatted.
-        5. If the text is already clear and professional, keep it unchanged.
-        6. Be strict about JSON compliance. Do not output anything outside the required JSON format. No need to explain the correction other than in JSON. No special characters, no quotes, no template like \`json\` nothing, just json response. 
+        6. If the text is already clear and professional, keep it unchanged.
+        7. Be strict about JSON compliance. Do not output anything outside the required JSON format. No need to explain the correction other than in JSON. No special characters, no quotes, no template like \`json\` nothing, just json response. 
       
       Error Handling:
         - If the input is empty, gibberish, or cannot be improved, return "isSuccess": false and include a human-friendly "error".

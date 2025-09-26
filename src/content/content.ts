@@ -1127,12 +1127,20 @@ class ImprovementPanelManager {
  * Acts as the central controller for the content script functionality
  */
 class TextImprovementExtension {
-  private pingIconManager: PingIconManager;
-  private panelManager: ImprovementPanelManager;
+  private pingIconManager?: PingIconManager;
+  private panelManager?: ImprovementPanelManager;
 
   constructor() {
-    this.pingIconManager = new PingIconManager();
-    this.panelManager = new ImprovementPanelManager();
+    setTimeout(() => {
+      if (!chrome?.runtime?.sendMessage) {
+        console.warn("chrome.runtime.sendMessage is not available. Extension initialization aborted.");
+        return;
+      }
+
+      // Initialize managers
+      this.pingIconManager = new PingIconManager();
+      this.panelManager = new ImprovementPanelManager();
+    }, 1000); 
   }
 
   /**
@@ -1140,8 +1148,8 @@ class TextImprovementExtension {
    * Should be called when the extension is disabled or page unloads
    */
   public cleanup(): void {
-    this.pingIconManager.cleanup();
-    this.panelManager.cleanup();
+    this.pingIconManager?.cleanup();
+    this.panelManager?.cleanup();
   }
 }
 
