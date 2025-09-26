@@ -918,11 +918,10 @@ class ImprovementPanelManager {
 
     // Highlight changes in the suggestion text
     const highlightedSuggestion = this.highlightChanges(this.currentInputText, cleanSuggestion);
-    const formattedSuggestion = highlightedSuggestion.replace(/\./g, '.<br>');
+    const formattedSuggestion = highlightedSuggestion.replace(/\n/g, '<br>');
   // Set it as innerHTML
     suggestionText.innerHTML = formattedSuggestion;
     // suggestionText.innerHTML = highlightedSuggestion;
-    
     loadingState.style.display = 'none';
     suggestionContent.style.display = 'block';
     errorState.style.display = 'none';
@@ -987,7 +986,10 @@ class ImprovementPanelManager {
    */
   private async replaceSelection(): Promise<void> {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
-    const text = suggestionText?.textContent || '';
+    const text = suggestionText?.innerHTML
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '') || '';
+    // const text = suggestionText?.textContent || '';
   
     if (this.proseMirrorEditor && this.changingProseMirror) {
       const parent = this.proseMirrorEditor;
