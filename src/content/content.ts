@@ -202,9 +202,8 @@ class PingIconManager {
     pingIcon.innerHTML = '✨';
     pingIcon.title = 'Improve selected text with AI';
 
-    // Style the icon
     Object.assign(pingIcon.style, {
-      position: 'absolute', // follow input dynamically
+      position: 'absolute',
       width: '20px',
       height: '20px',
       lineHeight: '20px',
@@ -217,19 +216,28 @@ class PingIconManager {
 
     document.body.appendChild(pingIcon);
 
+    let isIconClicked = false;
+
     // Function to update icon position dynamically
     const updatePosition = () => {
       const rect = inputElement.getBoundingClientRect();
-      pingIcon.style.top = `${rect.top + 5}px`; // vertically center
-      pingIcon.style.left = `${rect.right - 30}px`; // 4px inside right edge
+      pingIcon.style.top = `${rect.top + window.scrollY + 5}px`; // vertically offset
+      pingIcon.style.left = `${rect.right + window.scrollX - 28}px`; // right-aligned
+    };
+
+    // Get current selection length
+    const getSelectionLength = (): number => {
+      if ('selectionStart' in inputElement && inputElement.selectionStart !== null) {
+        return (inputElement.selectionEnd || 0) - (inputElement.selectionStart || 0);
+      }
+      return 0;
     };
 
     // Show/hide icon based on selection
     const updateVisibility = () => {
-      let selectionLength = 0;
-      if ('selectionStart' in inputElement && inputElement.selectionStart !== null) {
-        selectionLength = (inputElement.selectionEnd || 0) - (inputElement.selectionStart || 0);
-      }
+      if (isIconClicked) return;
+
+      const selectionLength = getSelectionLength();
       if (selectionLength >= this.minSelectionLength) {
         pingIcon.style.display = 'block';
         updatePosition();
@@ -238,19 +246,20 @@ class PingIconManager {
       }
     };
 
-    // Event listeners for input selection
-    const selectionEvents = ['mouseup', 'keyup', 'select', 'focus'];
-    selectionEvents.forEach(event => inputElement.addEventListener(event, updateVisibility));
+    // Selection events to track changes
+    const selectionEvents = ['mouseup', 'keyup', 'select', 'input', 'focus'];
+    selectionEvents.forEach(event => inputElement.addEventListener(event, () => setTimeout(updateVisibility, 10)));
 
+    // Blur handler to hide icon when not focused
     inputElement.addEventListener('blur', () => {
       setTimeout(() => {
-        if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
+        if (!isIconClicked && document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
           pingIcon.style.display = 'none';
         }
       }, 100);
     });
 
-    // Track scrollable parents to move icon
+    // Reposition icon on scroll/resize
     const scrollableParents: HTMLElement[] = [];
     let parent: HTMLElement | null = inputElement.parentElement;
     while (parent) {
@@ -264,14 +273,32 @@ class PingIconManager {
     };
 
     window.addEventListener('resize', repositionHandler);
-    window.addEventListener('scroll', repositionHandler, true); // capture scroll from any container
+    window.addEventListener('scroll', repositionHandler, true);
     scrollableParents.forEach(p => p.addEventListener('scroll', repositionHandler));
 
-    // Click handler
+    // Handle icon click
+    pingIcon.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isIconClicked = true;
+    });
+
     pingIcon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+
+      // Call your ping click handler
       this.handlePingClick(inputElement);
+
+      // Deselect text
+      inputElement.blur();
+      const selection = window.getSelection();
+      if (selection) selection.removeAllRanges();
+
+      // Reset flag and hide icon
+      setTimeout(() => {
+        isIconClicked = false;
+        pingIcon.style.display = 'none';
+      }, 50);
     });
 
     return {
@@ -289,9 +316,6 @@ class PingIconManager {
       }
     };
   }
-
-
-
 
 
   
@@ -345,19 +369,38 @@ class PingIconManager {
       pingIcon.style.left = `${rect.width - 28}px`;
     };
 
+    const getInputElementSelection = (element: HTMLElement): string => {
+      // Handle input/textarea elements
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        const start = element.selectionStart || 0;
+        const end = element.selectionEnd || 0;
+        return element.value.substring(start, end);
+      }
+      
+      // Handle contentEditable elements
+      if (element.isContentEditable) {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+          // Check if selection is within the editor
+          const range = selection.getRangeAt(0);
+          if (element.contains(range.commonAncestorContainer)) {
+            return selection.toString();
+          }
+        }
+      }
+      
+      return '';
+    };
+
     const updateVisibility = () => {
-      const selection = window.getSelection();
-      const selectedText = selection?.toString().trim() ?? "";
+      // Don't hide if icon is being clicked
+      if (isIconClicked) return;
+      
+      const selectedText = getInputElementSelection(editor).trim();
       console.log("selectedText", selectedText);
 
-      if (
-        selection &&
-        selection.rangeCount > 0 &&
-        !selection.isCollapsed &&
-        selectedText.length >= this.minSelectionLength && // 👈 only if some text is actually selected
-        editor.contains(selection.anchorNode)
-      ) {
-        this.lastSelectionText = selection.toString();
+      if (selectedText.length >= this.minSelectionLength) {
+        this.lastSelectionText = selectedText;
         pingIcon.style.display = 'block';
         updatePosition();
       } else {
@@ -365,32 +408,76 @@ class PingIconManager {
       }
     };
 
-    // Attach listeners once
-    const visibilityHandler = () => updateVisibility();
+    // Enhanced event handlers for better selection detection
+    const selectionHandler = () => {
+      // Small delay to ensure selection is complete
+      setTimeout(() => updateVisibility(), 10);
+    };
+
+    let isIconClicked = false;
+
     const blurHandler = () => {
       setTimeout(() => {
-        if (document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
+        if (!isIconClicked && document.activeElement !== pingIcon && !pingIcon.matches(':hover')) {
           pingIcon.style.display = 'none';
         }
       }, 100);
     };
 
-    editor.addEventListener('mouseup', visibilityHandler);
-    editor.addEventListener('keyup', visibilityHandler);
-    editor.addEventListener('focus', visibilityHandler);
+    // Attach listeners for various selection events
+    editor.addEventListener('mouseup', selectionHandler);
+    editor.addEventListener('keyup', selectionHandler);
+    editor.addEventListener('select', selectionHandler); // Specific to input/textarea
+    editor.addEventListener('selectionchange', selectionHandler); // For contentEditable
+    editor.addEventListener('input', selectionHandler); // Catch text changes
+    editor.addEventListener('focus', selectionHandler);
     editor.addEventListener('blur', blurHandler);
+
+    // Handle selection changes at document level for contentEditable
+    const documentSelectionHandler = () => {
+      // Don't hide if icon is being clicked
+      if (isIconClicked) return;
+      
+      const selection = window.getSelection();
+      if (selection && editor.contains(selection.anchorNode)) {
+        selectionHandler();
+      } else if (pingIcon.style.display === 'block') {
+        // Hide if selection moved outside editor
+        pingIcon.style.display = 'none';
+      }
+    };
+
+    document.addEventListener('selectionchange', documentSelectionHandler);
 
     window.addEventListener('scroll', () => {
       if (pingIcon.style.display === 'block') updatePosition();
     });
+    
     window.addEventListener('resize', () => {
       if (pingIcon.style.display === 'block') updatePosition();
+    });
+
+    // Enhanced click event to prevent hiding during click
+    pingIcon.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isIconClicked = true;
     });
 
     pingIcon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      
+      // Execute the click handler
       this.handleEditorPingIconClick(editor);
+      
+      // Reset the flag and hide icon after a small delay
+      const selection = window.getSelection();
+      if (selection) selection.removeAllRanges();
+      
+      setTimeout(() => {
+        isIconClicked = false;
+        pingIcon.style.display = 'none';
+      }, 50);
     });
 
     return {
@@ -400,10 +487,14 @@ class PingIconManager {
       hide: () => { pingIcon.style.display = 'none'; },
       destroy: () => {
         pingIcon.remove();
-        editor.removeEventListener('mouseup', visibilityHandler);
-        editor.removeEventListener('keyup', visibilityHandler);
-        editor.removeEventListener('focus', visibilityHandler);
+        editor.removeEventListener('mouseup', selectionHandler);
+        editor.removeEventListener('keyup', selectionHandler);
+        editor.removeEventListener('select', selectionHandler);
+        editor.removeEventListener('selectionchange', selectionHandler);
+        editor.removeEventListener('input', selectionHandler);
+        editor.removeEventListener('focus', selectionHandler);
         editor.removeEventListener('blur', blurHandler);
+        document.removeEventListener('selectionchange', documentSelectionHandler);
       }
     };
   }
@@ -827,7 +918,10 @@ class ImprovementPanelManager {
 
     // Highlight changes in the suggestion text
     const highlightedSuggestion = this.highlightChanges(this.currentInputText, cleanSuggestion);
-    suggestionText.innerHTML = highlightedSuggestion;
+    const formattedSuggestion = highlightedSuggestion.replace(/\./g, '.<br>');
+  // Set it as innerHTML
+    suggestionText.innerHTML = formattedSuggestion;
+    // suggestionText.innerHTML = highlightedSuggestion;
     
     loadingState.style.display = 'none';
     suggestionContent.style.display = 'block';
@@ -894,19 +988,6 @@ class ImprovementPanelManager {
   private async replaceSelection(): Promise<void> {
     const suggestionText = this.panel?.element.querySelector('.lre__suggestion-text') as HTMLElement;
     const text = suggestionText?.textContent || '';
-
-    // if(this.proseMirrorEditor && this.changingProseMirror){
-    //   const parser = new DOMParser();
-    //   const doc = parser.parseFromString(this.changingProseMirror, "text/html");
-    //   const element = doc.body.firstChild as HTMLElement | null;
-    //   if (element && this.proseMirrorEditor.parentNode) {
-    //     this.proseMirrorEditor.parentNode.replaceChild(element, this.proseMirrorEditor);
-    //     // Update the reference to point to the new element
-    //     this.proseMirrorEditor = element;
-    //     this.proseMirrorEditor.focus();
-    //     this.hidePanel();
-    //   }
-    // }
   
     if (this.proseMirrorEditor && this.changingProseMirror) {
       const parent = this.proseMirrorEditor;
