@@ -682,7 +682,15 @@ class ImprovementPanelManager {
 
           const response_data = JSON.parse(response.result);
           this.changingProseMirror = response_data.markdown_content;
-          this.showSuggestion(response_data.improved_text, response_data.purpose);
+          this.showSuggestion(
+            response_data.improved_text
+              .replace(/\. (?=[A-Z])/g, '.\n')        // add \n after sentence-ending period
+              .replace(/([?!]) (?=[A-Z])/g, '$1\n')   // add \n after ? or !
+              .replace(/\s*\n\s*/g, '\n')             // trim spaces around \n
+              .replace(/\n{2,}/g, '\n')               // collapse multiple newlines
+              .trim(),
+            response_data.purpose
+          );
         } else {
           this.showError(response.error);
         }
@@ -866,7 +874,12 @@ class ImprovementPanelManager {
       });
 
       if (response.isSuccess) {
-        this.showSuggestion(response.result, response.purpose);
+        this.showSuggestion(response.result
+          .replace(/\. (?=[A-Z])/g, '.\n')        // add \n after sentence-ending period
+          .replace(/([?!]) (?=[A-Z])/g, '$1\n')   // add \n after ? or !
+          .replace(/\s*\n\s*/g, '\n')             // trim spaces around \n
+          .replace(/\n{2,}/g, '\n')               // collapse multiple newlines
+          .trim(), response.purpose);
       } else {
         this.showError(response.error);
       }
