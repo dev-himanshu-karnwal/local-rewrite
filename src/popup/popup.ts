@@ -43,7 +43,7 @@ interface ModelConfig {
  * Message structure for extension communication
  */
 interface ExtensionMessage {
-  action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings';
+  action: 'improveText' | 'checkOllama' | 'getModels' | 'saveSettings' | 'loadSettings'  | 'makeEditedElement';
   text?: string;
   isShort?: boolean;
   settings?: UserSettings;
